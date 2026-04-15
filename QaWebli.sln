@@ -1,0 +1,41 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{01A6B6C6-3B17-4DF2-A6B1-F376FC26D9AD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QaWebli.Core", "src\QaWebli.Core\QaWebli.Core.csproj", "{E9369C4C-AE22-413D-84AA-B7A16A4954E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QaWebli.Infrastructure", "src\QaWebli.Infrastructure\QaWebli.Infrastructure.csproj", "{BDA1F9B3-966F-4604-B5C2-94C09A2D300E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QaWebli.TerminalUI", "src\QaWebli.TerminalUI\QaWebli.TerminalUI.csproj", "{E1009FA1-3F49-4858-BA7D-42EC4A98F464}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E9369C4C-AE22-413D-84AA-B7A16A4954E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E9369C4C-AE22-413D-84AA-B7A16A4954E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E9369C4C-AE22-413D-84AA-B7A16A4954E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E9369C4C-AE22-413D-84AA-B7A16A4954E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BDA1F9B3-966F-4604-B5C2-94C09A2D300E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BDA1F9B3-966F-4604-B5C2-94C09A2D300E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BDA1F9B3-966F-4604-B5C2-94C09A2D300E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BDA1F9B3-966F-4604-B5C2-94C09A2D300E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E1009FA1-3F49-4858-BA7D-42EC4A98F464}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1009FA1-3F49-4858-BA7D-42EC4A98F464}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1009FA1-3F49-4858-BA7D-42EC4A98F464}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1009FA1-3F49-4858-BA7D-42EC4A98F464}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E9369C4C-AE22-413D-84AA-B7A16A4954E8} = {01A6B6C6-3B17-4DF2-A6B1-F376FC26D9AD}
+		{BDA1F9B3-966F-4604-B5C2-94C09A2D300E} = {01A6B6C6-3B17-4DF2-A6B1-F376FC26D9AD}
+		{E1009FA1-3F49-4858-BA7D-42EC4A98F464} = {01A6B6C6-3B17-4DF2-A6B1-F376FC26D9AD}
+	EndGlobalSection
+EndGlobal
