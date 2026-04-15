@@ -19,6 +19,9 @@ Qa-webli is an interactive polling and presentation platform. It is designed to 
 
 *(UI in development. Screenshots to follow.)*
 
+## Project Management
+* [Kanban Board](https://github.com/orgs/cpit252-spring-26-IT1/projects/31)
+
 ## License
 
 **All Rights Reserved**
