@@ -1,16 +1,21 @@
 # Architecture & Design Patterns
 
-This project follows Domain-Driven Design (DDD) principles. We organize code by **Feature** (e.g., Sessions, Questions) rather than by **Type** (e.g., Models, Builders, Interfaces). 
+This project follows Domain-Driven Design (DDD) principles. The **domain model** in `QaWebli.Core` lives under [`src/QaWebli.Core/Domain/`](src/QaWebli.Core/Domain/), with core types grouped in **`Entities`**: [`Option`](src/QaWebli.Core/Domain/Entities/Option.cs) and [`Question`](src/QaWebli.Core/Domain/Entities/Question.cs). Higher-level concepts (for example live **sessions**, persistence, or UI) will live in other layers—[`QaWebli.Infrastructure`](src/QaWebli.Infrastructure/) and [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/)—as they are implemented.
 
-**Why we use this approach:**
-In traditional "Folder-by-Type" structures, changing how a Session works requires jumping between a `Models` folder and a `Builders` folder. By grouping files by their domain (`src/QaWebli.Core/Domain/Sessions/`), all related logic is kept in one place. This creates high cohesion, makes the codebase easier to navigate, and aligns with modern C# best practices.
+**Why this layout:** `Option` and `Question` are modeled as small, focused types with clear invariants. Keeping them together under `Domain/Entities` keeps the core quiz model easy to find and reuse from Terminal UI or future web UI without pulling in infrastructure. Feature-specific folders (e.g. sessions, imports) can be added beside `Entities` when those bounded contexts grow, without scattering entity definitions.
 
 ---
 
-## Implemented Patterns (CPIT-252)
+## Implemented patterns (CPIT-252)
 
-To satisfy course requirements without breaking the DDD structure, Gang of Four (GoF) design patterns are placed directly inside their relevant domain folders instead of an isolated "Patterns" directory.
+Course-required Gang of Four (GoF) patterns stay **next to the code they construct**, not in a generic `Patterns` folder.
 
-### 1. Creational: Builder Pattern
-* **Location:** [`src/QaWebli.Core/Domain/Sessions/SessionBuilder.cs`](src/QaWebli.Core/Domain/Sessions/SessionBuilder.cs)
-* **Rationale:** While modern C# can easily build basic objects, creating a live polling `Session` requires specific business rules. The system must generate a unique `JoinCode` and correctly stamp the UTC start time. The Builder pattern handles this messy setup logic behind the scenes. This ensures that every time a session is created, it is completely valid and secure, preventing developers from accidentally launching a broken session.
+### 1. Creational: Builder pattern
+
+* **Location:** [`src/QaWebli.Core/Domain/Entities/Question.cs`](src/QaWebli.Core/Domain/Entities/Question.cs) — nested type `Question.Builder`
+* **Rationale:** `Question` is immutable and exposes only a private constructor. The builder gathers number, prompt text, and options, then `Build()` enforces rules (non-empty text, at least one option) before returning a valid `Question`. That keeps construction errors in one place and prevents half-built questions from leaking into the rest of the app.
+
+### 2. Value-oriented option model
+
+* **Location:** [`src/QaWebli.Core/Domain/Entities/Option.cs`](src/QaWebli.Core/Domain/Entities/Option.cs)
+* **Rationale:** Each answer choice is an immutable `record` (label, text, correctness). Records give value equality and a stable shape for lists inside `Question`.

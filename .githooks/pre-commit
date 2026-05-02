@@ -1,0 +1,6 @@
+#!/bin/sh
+# Block commits if the solution does not build.
+set -e
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+dotnet build QaWebli.sln --nologo -v q
