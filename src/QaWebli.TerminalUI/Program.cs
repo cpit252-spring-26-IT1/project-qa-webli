@@ -1,4 +1,5 @@
 using QaWebli.Domain.Entities;
+using QaWebli.Infrastructure.Parsing;
 
 namespace QaWebli.TerminalUI;
 
@@ -6,42 +7,23 @@ class Program
 {
     static void Main(string[] args)
     {
-        var q1 = new Question.Builder()
-                .WithNumber(1)
-                .WithRawText("What is the capital of France?")
-                .AddOption("A", "Paris", true)
-                .AddOption("B", "London", false)
-                .AddOption("C", "Berlin", false)
-                .Build();
+        if (args.Length == 0)
+        {
+            Console.WriteLine("Usage: qa-webli <quiz.md>");
+            return;
+        }
 
-        var q2 = new Question.Builder()
-                .WithNumber(2)
-                .WithRawText("What is the capital of Japan?")
-                .AddOption("A", "Seoul", false)
-                .AddOption("B", "Beijing", false)
-                .AddOption("C", "Tokyo", true)
-                .Build();
+        var quiz = MarkdownQuizParser.ParseFile(args[0]);
 
-        var quiz = new Quiz.Builder()
-                .WithTitle("Geography Trivia")
-                .AddQuestion(q1)
-                .AddQuestion(q2)
-                .Build();
+        Console.WriteLine($"Quiz: {quiz.Title} ({quiz.TotalQuestions} questions)");
+        Console.WriteLine();
 
-        var session = new Session.Builder()
-                .WithQuiz(quiz)
-                .Build();
-
-        Console.WriteLine($"Session {session.Id}: {session.Quiz.Title}");
-        Console.WriteLine($"Current: Q{session.CurrentQuestion.Number} - {session.CurrentQuestion.RawText}");
-
-        Console.WriteLine("Move next...");
-        session.MoveNext();
-        Console.WriteLine($"Current: Q{session.CurrentQuestion.Number} - {session.CurrentQuestion.RawText}");
-
-        Console.WriteLine("Move previous...");
-        session.MovePrevious();
-        Console.WriteLine($"Current: Q{session.CurrentQuestion.Number} - {session.CurrentQuestion.RawText}");
-
+        foreach (var q in quiz.Questions)
+        {
+            Console.WriteLine($"  Q{q.Number}: {q.RawText}");
+            foreach (var opt in q.Options)
+                Console.WriteLine($"    {opt.Label}) {opt.Text} {(opt.IsCorrect ? "✓" : "")}");
+            Console.WriteLine();
+        }
     }
 }

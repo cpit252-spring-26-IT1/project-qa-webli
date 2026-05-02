@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\QaWebli.Core\QaWebli.Core.csproj" />
+    <ProjectReference Include="..\QaWebli.Infrastructure\QaWebli.Infrastructure.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

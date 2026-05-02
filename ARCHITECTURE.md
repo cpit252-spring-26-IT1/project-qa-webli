@@ -38,18 +38,71 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 Run:
 
 ```bash
-dotnet run --project src/QaWebli.TerminalUI
+dotnet run --project src/QaWebli.TerminalUI -- sample-quiz.md
 ```
 
 The outcome of this commit is this:
 
 ```
-Session 3cc8a4dc: Geography Trivia
-Current: Q1 - What is the capital of France?
-Move next...
-Current: Q2 - What is the capital of Japan?
-Move previous...
-Current: Q1 - What is the capital of France?
+Quiz: CPIT 252 — Design Patterns (10 questions)
 
-```
+  Q1: Which creational pattern ensures an object is fully configured and valid before it exists?
+    A) Builder ✓
+    B) Singleton 
+    C) Factory Method 
+    D) Prototype 
+
+  Q2: Which pattern restricts a class to exactly one instance with global access?
+    A) Builder 
+    B) Singleton ✓
+    C) Strategy 
+    D) Observer 
+
+  Q3: Which behavioral pattern lets one object notify multiple dependents without knowing who they are?
+    A) Strategy 
+    B) Facade 
+    C) Observer ✓
+    D) Composite 
+
+  Q4: Which structural pattern provides a unified interface to a set of interfaces in a subsystem?
+    A) Adapter 
+    B) Facade ✓
+    C) Decorator 
+    D) Proxy 
+
+  Q5: Which pattern lets you treat a group of objects the same way you treat a single instance?
+    A) Strategy 
+    B) Observer 
+    C) Composite ✓
+    D) Bridge 
+
+  Q6: Which pattern defines a family of algorithms and makes them interchangeable at runtime?
+    A) Strategy ✓
+    B) Observer 
+    C) Facade 
+    D) Singleton 
+
+  Q7: Which pattern delegates object creation to a subclass instead of calling a constructor directly?
+    A) Builder 
+    B) Singleton 
+    C) Factory Method ✓
+    D) Prototype 
+
+  Q8: In the Observer pattern, what is the object that sends notifications called?
+    A) Listener 
+    B) Subject ✓
+    C) Strategy 
+    D) Client 
+
+  Q9: What problem does the Builder pattern solve that a constructor alone cannot?
+    A) Preventing multiple instances 
+    B) Constructing objects with many optional or required parameters step by step ✓
+    C) Notifying observers of state changes 
+    D) Hiding a complex subsystem 
+
+  Q10: Which principle is best demonstrated by the Strategy pattern?
+    A) Liskov Substitution 
+    B) Open/Closed — open for extension, closed for modification ✓
+    C) Single Responsibility 
+    D) Dependency Inversion 
 ```
