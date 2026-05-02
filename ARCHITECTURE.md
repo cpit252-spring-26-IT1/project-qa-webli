@@ -3,6 +3,8 @@
 
 This project follows Domain-Driven Design (DDD) principles. The **domain model** in `QaWebli.Core` lives under [`src/QaWebli.Core/Domain/`](src/QaWebli.Core/Domain/), with core types grouped in **`Entities`**: [`Option`](src/QaWebli.Core/Domain/Entities/Option.cs), [`Question`](src/QaWebli.Core/Domain/Entities/Question.cs), [`Quiz`](src/QaWebli.Core/Domain/Entities/Quiz.cs), and [`Session`](src/QaWebli.Core/Domain/Entities/Session.cs). [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/) exercises these types in a small console demo; higher-level concerns (persistence, web UI) will live in other layers as they are implemented.
 
+[`QaWebli.Infrastructure`](src/QaWebli.Infrastructure/) handles parsing quiz files from disk. [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/) exercises the domain in a console demo; higher-level concerns (web UI) will live in other layers as they are implemented.
+
 **Why this layout:** `Option`, `Question`, `Quiz`, and `Session` are small, invariant-focused types. `Question` holds a single prompt and its choices; `Quiz` aggregates multiple `Question` instances under a title; `Session` tracks the live state of a quiz in progress (which question is active, navigation). Builders validate construction so invalid objects never reach the rest of the app. Keeping everything under `Domain/Entities` keeps the model easy to reuse without pulling in infrastructure.
 
 ---
@@ -26,14 +28,21 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 * **Location:** [`src/QaWebli.Core/Domain/Entities/Session.cs`](src/QaWebli.Core/Domain/Entities/Session.cs) — nested type `Session.Builder`
 * **Rationale:** A `Session` wraps a `Quiz` and tracks which question is currently active. `Session.Builder` auto-generates an 8-character ID, requires a valid `Quiz`, and validates the start index. The private constructor ensures sessions are always created in a valid state.
 
-### 4. Value-oriented option model
+### 4. Structural: Facade pattern
 
-* **Location:** [`src/QaWebli.Core/Domain/Entities/Option.cs`](src/QaWebli.Core/Domain/Entities/Option.cs)
-* **Rationale:** Each answer choice is an immutable `record` (label, text, correctness). Records provide value equality and a stable shape for lists inside `Question`.
+* **Location:** [`src/QaWebli.Core/Application/Services/SessionFacade.cs`](src/QaWebli.Core/Application/Services/SessionFacade.cs)
+* **Rationale:** `Session` has low-level methods like `MoveNext()` and `MovePrevious()`. Without a facade, every caller would need to call these methods directly AND manually fire events. `SessionFacade` wraps this behind `NextQuestionAsync()` and `PreviousQuestionAsync()`, which both update the session AND publish the appropriate event. The caller does one method call instead of two.
+
+### 5. Behavioral: Observer pattern
+
+* **Location:** [`src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs`](src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs) (contract), [`src/QaWebli.Core/Application/Services/SessionFacade.cs`](src/QaWebli.Core/Application/Services/SessionFacade.cs) (subject)
+* **Domain Events:** [`src/QaWebli.Core/Domain/Events/DomainEvents.cs`](src/QaWebli.Core/Domain/Events/DomainEvents.cs) — `QuestionChangedEvent`, `VoteReceivedEvent`, `StudentPresenceEvent`
+* **Rationale:** When a quiz session changes (question navigated, vote cast, student joins), multiple independent things must happen: the terminal re-renders, the terminal, the audit logger (latter feature) to disk. Without the Observer pattern, `SessionFacade` would need to directly call methods on all three classes, creating tight coupling. With the Observer pattern, the facade simply publishes an event, and each observer reacts independently. The facade does not know who is listening or what they do.
+
 
 ---
 
-## Terminal demo (this commit)
+## Terminal demo
 
 Run:
 
@@ -41,68 +50,23 @@ Run:
 dotnet run --project src/QaWebli.TerminalUI -- sample-quiz.md
 ```
 
-The outcome of this commit is this:
+Interactive session — use ← → arrow keys to navigate questions, Q to quit:
 
 ```
-Quiz: CPIT 252 — Design Patterns (10 questions)
+  Q1/10 — CPIT 252 — Design Patterns
 
-  Q1: Which creational pattern ensures an object is fully configured and valid before it exists?
-    A) Builder ✓
-    B) Singleton 
-    C) Factory Method 
-    D) Prototype 
+  Which creational pattern ensures an object is fully configured and valid before it exists?
 
-  Q2: Which pattern restricts a class to exactly one instance with global access?
-    A) Builder 
-    B) Singleton ✓
-    C) Strategy 
-    D) Observer 
+    A) Builder
+    B) Singleton
+    C) Factory Method
+    D) Prototype
 
-  Q3: Which behavioral pattern lets one object notify multiple dependents without knowing who they are?
-    A) Strategy 
-    B) Facade 
-    C) Observer ✓
-    D) Composite 
+  [Event] Question changed to 2/10
 
-  Q4: Which structural pattern provides a unified interface to a set of interfaces in a subsystem?
-    A) Adapter 
-    B) Facade ✓
-    C) Decorator 
-    D) Proxy 
+  ← → Navigate | Q Quit
+```
 
-  Q5: Which pattern lets you treat a group of objects the same way you treat a single instance?
-    A) Strategy 
-    B) Observer 
-    C) Composite ✓
-    D) Bridge 
-
-  Q6: Which pattern defines a family of algorithms and makes them interchangeable at runtime?
-    A) Strategy ✓
-    B) Observer 
-    C) Facade 
-    D) Singleton 
-
-  Q7: Which pattern delegates object creation to a subclass instead of calling a constructor directly?
-    A) Builder 
-    B) Singleton 
-    C) Factory Method ✓
-    D) Prototype 
-
-  Q8: In the Observer pattern, what is the object that sends notifications called?
-    A) Listener 
-    B) Subject ✓
-    C) Strategy 
-    D) Client 
-
-  Q9: What problem does the Builder pattern solve that a constructor alone cannot?
-    A) Preventing multiple instances 
-    B) Constructing objects with many optional or required parameters step by step ✓
-    C) Notifying observers of state changes 
-    D) Hiding a complex subsystem 
-
-  Q10: Which principle is best demonstrated by the Strategy pattern?
-    A) Liskov Substitution 
-    B) Open/Closed — open for extension, closed for modification ✓
-    C) Single Responsibility 
-    D) Dependency Inversion 
+Each navigation triggers a `QuestionChangedEvent` that is published to all subscribed observers.
+```
 ```
