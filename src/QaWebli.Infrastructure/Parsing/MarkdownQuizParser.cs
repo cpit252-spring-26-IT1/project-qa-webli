@@ -43,6 +43,11 @@ public static class MarkdownQuizParser
                 .WithNumber(number)
                 .WithRawText(rawText);
 
+            // Parse raw text into ContentBlocks (PlainText / CodeBlock)
+            var content = ContentBlockParser.Parse(rawText);
+            foreach (var block in content)
+                qb.AddContentBlock(block);
+
             var searchStart = qm.Index + qm.Length;
             var nextQuestion = questionMatches.Cast<Match>()
                 .FirstOrDefault(m => m.Index > qm.Index);

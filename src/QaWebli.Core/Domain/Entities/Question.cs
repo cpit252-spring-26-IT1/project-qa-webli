@@ -1,35 +1,36 @@
+using QaWebli.Domain.ValueObjects;
+
 namespace QaWebli.Domain.Entities;
+
 public sealed class Question
 {
     public int Number { get; }
     public string RawText { get; }
+    public IReadOnlyList<ContentBlock> Content { get; }
     public IReadOnlyList<Option> Options { get; }
 
     public Option? CorrectOption => Options.FirstOrDefault(o => o.IsCorrect);
 
-    private Question(int number, string rawText, IReadOnlyList<Option> options)
+    private Question(int number, string rawText, IReadOnlyList<ContentBlock> content, IReadOnlyList<Option> options)
     {
         Number = number;
         RawText = rawText;
+        Content = content;
         Options = options;
     }
 
-    // ── Builder ────────────────────────────────────────────────────────────
     public sealed class Builder
     {
         private int _number;
         private string? _rawText;
+        private readonly List<ContentBlock> _content = [];
         private readonly List<Option> _options = [];
 
         public Builder WithNumber(int number) { _number = number; return this; }
-
         public Builder WithRawText(string text) { _rawText = text; return this; }
-
+        public Builder AddContentBlock(ContentBlock block) { _content.Add(block); return this; }
         public Builder AddOption(string label, string text, bool isCorrect = false)
-        {
-            _options.Add(new Option(label, text, isCorrect));
-            return this;
-        }
+        { _options.Add(new Option(label, text, isCorrect)); return this; }
 
         public Question Build()
         {
@@ -37,8 +38,7 @@ public sealed class Question
                 throw new InvalidOperationException("Question must have text.");
             if (_options.Count == 0)
                 throw new InvalidOperationException($"Question {_number} must have at least one option.");
-
-            return new Question(_number, _rawText!, _options.AsReadOnly());
+            return new Question(_number, _rawText!, _content.AsReadOnly(), _options.AsReadOnly());
         }
     }
 }
