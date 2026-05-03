@@ -28,10 +28,18 @@ public sealed class PollingHub : ISessionObserver
     public async Task OnQuestionChangedAsync(QuestionChangedEvent e)
     {
         await BroadcastQuestionAsync();
+        await BroadcastVoteStatsAsync();
     }
 
-    public Task OnVoteReceivedAsync(VoteReceivedEvent e) => Task.CompletedTask;
-    public Task OnStudentPresenceChangedAsync(StudentPresenceEvent e) => Task.CompletedTask;
+    public async Task OnVoteReceivedAsync(VoteReceivedEvent e)
+    {
+        await BroadcastVoteStatsAsync();
+    }
+
+    public async Task OnStudentPresenceChangedAsync(StudentPresenceEvent e)
+    {
+        await BroadcastVoteStatsAsync();
+    }
 
     // Connection handling
     public async Task HandleConnectionAsync(WebSocket webSocket, string studentId)
@@ -42,7 +50,8 @@ public sealed class PollingHub : ISessionObserver
         try
         {
             await SendQuestionAsync(webSocket);
-            await ListenAsync(webSocket);
+            await SendVoteStatsAsync(webSocket);
+            await ListenAsync(webSocket, studentId);
         }
         catch (WebSocketException) { }
         finally
@@ -54,12 +63,14 @@ public sealed class PollingHub : ISessionObserver
 
     public async Task CloseAllAsync()
     {
+        // Tell every student the session ended, then close their connection
         var tasks = _clients.Values
             .Where(ws => ws.State == WebSocketState.Open)
             .Select(async ws =>
             {
                 try
                 {
+                    await SendJsonAsync(ws, "{\"type\":\"session_ended\"}");
                     await ws.CloseAsync(WebSocketCloseStatus.NormalClosure,
                         "Session ended", CancellationToken.None);
                 }
@@ -68,15 +79,38 @@ public sealed class PollingHub : ISessionObserver
         await Task.WhenAll(tasks);
     }
 
-    private async Task ListenAsync(WebSocket ws)
+    // Listening for incoming student votes
+    private async Task ListenAsync(WebSocket ws, string studentId)
     {
         var buffer = new byte[512];
         while (ws.State == WebSocketState.Open)
         {
             var result = await ws.ReceiveAsync(buffer, CancellationToken.None);
             if (result.MessageType == WebSocketMessageType.Close) break;
-            // Text messages ignored for now — voting comes later
+            if (result.MessageType != WebSocketMessageType.Text) continue;
+
+            var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+            await HandleInboundAsync(studentId, json, ws);
         }
+    }
+
+    private async Task HandleInboundAsync(string studentId, string json, WebSocket ws)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var type = doc.RootElement.GetProperty("type").GetString();
+            if (type == "vote")
+            {
+                var option = doc.RootElement.GetProperty("option").GetString();
+                if (!string.IsNullOrWhiteSpace(option))
+                {
+                    await _manager.RecordVoteAsync(studentId, option);
+                    await SendJsonAsync(ws, "{\"type\":\"vote_confirmed\"}");
+                }
+            }
+        }
+        catch { /* malformed message, ignore */ }
     }
 
     private async Task SendQuestionAsync(WebSocket ws)
@@ -97,11 +131,39 @@ public sealed class PollingHub : ISessionObserver
         await SendJsonAsync(ws, JsonSerializer.Serialize(payload));
     }
 
+    private async Task SendVoteStatsAsync(WebSocket ws)
+    {
+        var session = _manager.Session;
+        var counts = session.GetVoteCounts(session.CurrentQuestionIndex);
+        var totalVotes = counts.Values.Sum();
+        var options = counts.Select(kv => new
+        {
+            label = kv.Key,
+            count = kv.Value,
+            percentage = totalVotes > 0 ? Math.Round(kv.Value * 100.0 / totalVotes, 1) : 0
+        }).ToArray();
+
+        var stats = new
+        {
+            type = "stats",
+            data = new { totalVotes, totalStudents = session.StudentCount, options }
+        };
+        await SendJsonAsync(ws, JsonSerializer.Serialize(stats));
+    }
+
     private async Task BroadcastQuestionAsync()
     {
         var tasks = _clients.Values
             .Where(ws => ws.State == WebSocketState.Open)
             .Select(ws => SendQuestionAsync(ws));
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task BroadcastVoteStatsAsync()
+    {
+        var tasks = _clients.Values
+            .Where(ws => ws.State == WebSocketState.Open)
+            .Select(ws => SendVoteStatsAsync(ws));
         await Task.WhenAll(tasks);
     }
 

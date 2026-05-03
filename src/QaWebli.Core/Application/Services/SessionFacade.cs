@@ -61,6 +61,14 @@ public class SessionFacade
             StudentPresenceEvent.Now(_session.StudentCount, studentId, false)));
     }
 
+    // Reminder: record a student's vote and notify observers.
+    public async Task RecordVoteAsync(string studentId, string option)
+    {
+        bool isNew = _session.RecordVote(studentId, _session.CurrentQuestionIndex, option);
+        await PublishAsync(obs => obs.OnVoteReceivedAsync(
+            VoteReceivedEvent.Now(_session.CurrentQuestionIndex, studentId, option)));   
+    }
+
     // Reminder: run the same action for every observer and wait for all of them.
     private async Task PublishAsync(Func<ISessionObserver, Task> action)
     {

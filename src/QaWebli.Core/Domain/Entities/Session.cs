@@ -10,7 +10,7 @@ public sealed class Session
     public Question CurrentQuestion => Quiz.Questions[CurrentQuestionIndex];
 
     private readonly ConcurrentDictionary<string, bool> _connectedStudents = new();
-    
+
     public int StudentCount => _connectedStudents.Count;
 
     private Session(string id, Quiz quiz, int startIndex)
@@ -18,6 +18,8 @@ public sealed class Session
         Id = id;
         Quiz = quiz;
         CurrentQuestionIndex = startIndex;
+        for (int i = 0; i < quiz.Questions.Count; i++)
+            _votes[i] = new ConcurrentDictionary<string, string>();
     }
 
     public bool TryMoveNext(out int newIndex)
@@ -37,6 +39,37 @@ public sealed class Session
     public void AddStudent(string studentId) => _connectedStudents[studentId] = true;
     public void RemoveStudent(string studentId) => _connectedStudents.TryRemove(studentId, out _);
 
+    // ── Voting ─────────────────────────────────────────────────────────
+
+    // studentId → optionLabel voted on the indexed question
+    private readonly ConcurrentDictionary<int, ConcurrentDictionary<string, string>> _votes = new();
+    private int _totalVotesCast;
+
+    public int TotalVotesCast => _totalVotesCast;
+    public int CurrentQuestionVotesCast => _votes.TryGetValue(CurrentQuestionIndex, out var qv) ? qv.Count : 0;
+
+    /// Records a vote. Returns true if this is a new vote, false if a vote change.</summary>
+    public bool RecordVote(string studentId, int questionIndex, string option)
+    {
+        var questionVotes = _votes.GetOrAdd(questionIndex, _ => new ConcurrentDictionary<string, string>());
+        bool isNew = !questionVotes.ContainsKey(studentId);
+        questionVotes[studentId] = option;
+        if (isNew) Interlocked.Increment(ref _totalVotesCast);
+        return isNew;
+    }
+
+    public Dictionary<string, int> GetVoteCounts(int questionIndex)
+    {
+        var question = Quiz.Questions[questionIndex];
+        var result = question.Options.ToDictionary(o => o.Label, _ => 0);
+        if (_votes.TryGetValue(questionIndex, out var qv))
+            foreach (var vote in qv.Values)
+                if (result.ContainsKey(vote))
+                    result[vote]++;
+        return result;
+    }
+
+    // ── Builder ─────────────────────────────────────────────────────────
     public sealed class Builder
     {
         private string _id = Guid.NewGuid().ToString("N")[..8];

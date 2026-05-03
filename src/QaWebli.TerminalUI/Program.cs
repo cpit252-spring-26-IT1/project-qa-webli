@@ -24,9 +24,8 @@ class Program
         var session = new Session.Builder().WithQuiz(quiz).Build();
         var facade = new SessionFacade(session);
 
-        // Subscribe observers
-        facade.Subscribe(new ConsoleObserver(session));
-        facade.Subscribe(AuditLogger.Instance);
+        // Composite + Factory Method — combines all rendering strategies
+        var renderer = CompositeQuestionRenderer.Default();
 
         // Start web server so students can connect from their phones
         var hub = new PollingHub(facade);
@@ -35,10 +34,11 @@ class Program
         AnsiConsole.MarkupLine($"[green]  ✓[/] Students join at: [link]{server.ServerUrl}[/]");
         await Task.Delay(600);
 
-        AuditLogger.Instance.LogSessionStart(session.Id, session.Quiz.Title);
+        // Subscribe observers — now renderer and server exist
+        facade.Subscribe(new ConsoleObserver(session, () => RenderQuestion(session, renderer, server.ServerUrl)));
+        facade.Subscribe(AuditLogger.Instance);
 
-        // Composite + Factory Method — combines all rendering strategies
-        var renderer = CompositeQuestionRenderer.Default();
+        AuditLogger.Instance.LogSessionStart(session.Id, session.Quiz.Title);
 
         RenderQuestion(session, renderer, server.ServerUrl);
 
@@ -72,6 +72,8 @@ class Program
     static void RenderQuestion(Session session, CompositeQuestionRenderer renderer, string serverUrl)
     {
         var q = session.CurrentQuestion;
+        var votes = session.GetVoteCounts(session.CurrentQuestionIndex);
+        var totalVotes = votes.Values.Sum();
         AnsiConsole.Clear();
 
         var questionContent = renderer.RenderQuestion(q);
@@ -86,24 +88,38 @@ class Program
         AnsiConsole.Write(panel);
         AnsiConsole.WriteLine();
 
-        // Options with letter badges
-        foreach (var opt in q.Options)
+        // Options with vote bars
+        var palette = new[] { "green", "aqua", "yellow", "red", "purple", "teal" };
+        foreach (var (opt, i) in q.Options.Select((o, idx) => (o, idx)))
         {
-            var color = opt.IsCorrect ? "green" : "white";
-            var check = opt.IsCorrect ? " ✓" : "";
-            AnsiConsole.MarkupLine($"  [{color}]  [bold]{opt.Label}[/]  {Markup.Escape(opt.Text)}{check}[/]");
+            var color = palette[i % palette.Length];
+            var count = votes.GetValueOrDefault(opt.Label, 0);
+            var pct = totalVotes > 0 ? count * 100.0 / totalVotes : 0;
+            var barWidth = 20;
+            var filled = (int)Math.Round(pct / 100.0 * barWidth);
+            var empty = barWidth - filled;
+
+            var bar = $"[{color}]" + new string('#', filled) + new string('-', empty) + "[/]";
+            /// removed the "✓" for later to add now I want to see without it.
+            var check = opt.IsCorrect ? "" : "";
+            AnsiConsole.MarkupLine($"  [bold {color}]{opt.Label}[/]  {Markup.Escape(opt.Text)}{check}  {bar}  [grey]{count} ({pct:F0}%)[/]");
         }
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[dim]← → Navigate | [bold]Q[/] Quit[/]   [grey]|[/]   [green]{session.StudentCount}[/] student(s)  [link]{serverUrl}[/]");
+        AnsiConsole.MarkupLine($"[dim]← → Navigate | [bold]Q[/] Quit[/]   [grey]|[/]   [green]{session.StudentCount}[/] student(s)  [grey]|[/]  [yellow]{totalVotes}[/] vote(s)  [link]{serverUrl}[/]");
     }
 }
 
 public class ConsoleObserver : ISessionObserver
 {
     private readonly Session _session;
+    private readonly Action _onVote;
 
-    public ConsoleObserver(Session session) { _session = session; }
+    public ConsoleObserver(Session session, Action onVote)
+    {
+        _session = session;
+        _onVote = onVote;
+    }
 
     public Task OnQuestionChangedAsync(QuestionChangedEvent e)
     {
@@ -111,7 +127,15 @@ public class ConsoleObserver : ISessionObserver
         return Task.CompletedTask;
     }
 
-    // not yet implemented!
-    public Task OnVoteReceivedAsync(VoteReceivedEvent e) => Task.CompletedTask;
-    public Task OnStudentPresenceChangedAsync(StudentPresenceEvent e) => Task.CompletedTask;
+    public Task OnVoteReceivedAsync(VoteReceivedEvent e)
+    {
+        _onVote();
+        return Task.CompletedTask;
+    }
+
+    public Task OnStudentPresenceChangedAsync(StudentPresenceEvent e)
+    {
+        _onVote();
+        return Task.CompletedTask;
+    }
 }
