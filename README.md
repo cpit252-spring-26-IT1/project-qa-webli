@@ -1,3 +1,4 @@
+```markdown
 # Qa-webli
 
 *(QA = Question & Answer | Web = Web Interface | li = Command Line Interface)*
@@ -13,7 +14,32 @@ Qa-webli is an interactive polling and presentation platform. It is designed to 
 
 ## Usage
 
-*(Instructions for building and running the project will be added as core features are merged.)*
+```bash
+dotnet run --project src/QaWebli.TerminalUI -- sample-quiz.md
+```
+
+Or download a pre-built binary from the releases below.
+
+### Quiz File Format
+
+Quizzes are written in Markdown — see [`docs/quiz-format.md`](docs/quiz-format.md) for the full guide.
+
+## Downloads (v1 — pre-release)
+
+| Platform | Link |
+|----------|------|
+| Windows x64 | [qa-webli-v1-win-x64.zip](https://github.com/cpit252-spring-26-IT1/project-qa-webli/releases/download/v1/qa-webli-v1-win-x64.zip) |
+| Linux x64 | [qa-webli-v1-linux-x64.zip](https://github.com/cpit252-spring-26-IT1/project-qa-webli/releases/download/v1/qa-webli-v1-linux-x64.zip) |
+| macOS ARM | [qa-webli-v1-osx-arm64.zip](https://github.com/cpit252-spring-26-IT1/project-qa-webli/releases/download/v1/qa-webli-v1-osx-arm64.zip) |
+| Sample Quiz | [sample-quiz.md](https://github.com/cpit252-spring-26-IT1/project-qa-webli/releases/download/v1/sample-quiz.md) |
+
+Unzip, place `sample-quiz.md` next to the executable, and run:
+
+```
+./qa-webli sample-quiz.md
+```
+
+Navigate with ← → arrow keys. Press Q to quit.
 
 ## Screenshots
 
