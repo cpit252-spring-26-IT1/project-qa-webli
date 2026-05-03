@@ -1,5 +1,6 @@
-namespace QaWebli.Domain.Entities;
+using System.Collections.Concurrent;
 
+namespace QaWebli.Domain.Entities;
 
 public sealed class Session
 {
@@ -8,6 +9,10 @@ public sealed class Session
     public int CurrentQuestionIndex { get; private set; }
     public Question CurrentQuestion => Quiz.Questions[CurrentQuestionIndex];
 
+    private readonly ConcurrentDictionary<string, bool> _connectedStudents = new();
+    
+    public int StudentCount => _connectedStudents.Count;
+
     private Session(string id, Quiz quiz, int startIndex)
     {
         Id = id;
@@ -15,21 +20,23 @@ public sealed class Session
         CurrentQuestionIndex = startIndex;
     }
 
-    public bool MoveNext()
+    public bool TryMoveNext(out int newIndex)
     {
-        if (CurrentQuestionIndex >= Quiz.TotalQuestions - 1) return false;
-        CurrentQuestionIndex++;
+        if (CurrentQuestionIndex >= Quiz.TotalQuestions - 1) { newIndex = CurrentQuestionIndex; return false; }
+        newIndex = ++CurrentQuestionIndex;
         return true;
     }
 
-    public bool MovePrevious()
+    public bool TryMovePrevious(out int newIndex)
     {
-        if (CurrentQuestionIndex <= 0) return false;
-        CurrentQuestionIndex--;
+        if (CurrentQuestionIndex <= 0) { newIndex = CurrentQuestionIndex; return false; }
+        newIndex = --CurrentQuestionIndex;
         return true;
     }
 
-    // ── Builder ────────────────────────────────────────────────────────────
+    public void AddStudent(string studentId) => _connectedStudents[studentId] = true;
+    public void RemoveStudent(string studentId) => _connectedStudents.TryRemove(studentId, out _);
+
     public sealed class Builder
     {
         private string _id = Guid.NewGuid().ToString("N")[..8];

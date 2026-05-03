@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>QA-Webli | Live Poll</title>
+  <!-- Highlight.js for code-block rendering in question text -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg:        #07080f;
+      --surface:   #0f1117;
+      --card:      rgba(255,255,255,0.045);
+      --border:    rgba(255,255,255,0.09);
+      --accent:    #6c63ff;
+      --accent2:   #00d4ff;
+      --success:   #10b981;
+      --warning:   #f59e0b;
+      --danger:    #ef4444;
+      --text:      #f0f0f7;
+      --muted:     #6b7280;
+      --glow:      rgba(108,99,255,0.35);
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Subtle animated gradient background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 0%, rgba(108,99,255,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(0,212,255,0.08) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 580px;
+      margin: 0 auto;
+      padding: 20px 16px 32px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0 20px;
+    }
+
+    .brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.02em;
+    }
+
+    .connection-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: 5px 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--danger);
+      transition: background 0.4s;
+      flex-shrink: 0;
+    }
+    .dot.live {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: blink 2.2s ease-in-out infinite;
+    }
+
+    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
+
+    /* ── RECONNECT BANNER ───────────────────────────────────── */
+    #reconnectBanner {
+      display: none;
+      background: rgba(239,68,68,0.15);
+      border: 1px solid rgba(239,68,68,0.4);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 0.82rem;
+      color: #fca5a5;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    /* ── MAIN CARD ──────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      backdrop-filter: blur(24px);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    /* ── QUESTION META ──────────────────────────────────────── */
+    .q-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .q-badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent2);
+      background: rgba(0,212,255,0.1);
+      border-radius: 6px;
+      padding: 3px 9px;
+    }
+
+    .q-progress {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    /* Progress bar */
+    .progress-bar {
+      height: 3px;
+      background: var(--border);
+      border-radius: 99px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      transition: width 0.5s ease;
+    }
+
+    /* ── QUESTION TEXT ──────────────────────────────────────── */
+    .q-text {
+      font-size: 1.15rem;
+      font-weight: 500;
+      line-height: 1.65;
+      margin-bottom: 10px;
+      white-space: pre-wrap;
+    }
+
+    /* Code block inside question */
+    .q-text pre {
+      background: #1a1b26;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      margin: 12px 0;
+      overflow-x: auto;
+    }
+    .q-text pre code {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.85rem;
+      line-height: 1.55;
+      padding: 16px 18px;
+      display: block;
+    }
+    /* Override hljs background to match our theme */
+    .hljs { background: transparent !important; }
+
+    /* ── OPTIONS ────────────────────────────────────────────── */
+    .options { display: flex; flex-direction: column; gap: 11px; margin-top: 20px; }
+
+    .option-btn {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 18px;
+      background: rgba(255,255,255,0.03);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: border-color 0.25s, background 0.25s, transform 0.15s;
+      text-align: left;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.97rem;
+      overflow: hidden;
+    }
+
+    .option-btn:hover:not(:disabled) {
+      border-color: rgba(108,99,255,0.55);
+      background: rgba(108,99,255,0.07);
+      transform: translateY(-1.5px);
+    }
+
+    .option-btn:active:not(:disabled) { transform: translateY(0); }
+
+    .option-btn.selected {
+      border-color: var(--accent);
+      background: rgba(108,99,255,0.12);
+      box-shadow: 0 0 22px rgba(108,99,255,0.2);
+    }
+
+    .option-btn:disabled { cursor: default; }
+
+    /* Animated fill bar behind the button (vote %) */
+    .opt-bar {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background: rgba(108,99,255,0.10);
+      border-radius: 13px;
+      width: 0%;
+      transition: width 0.55s cubic-bezier(0.34,1.56,0.64,1);
+      pointer-events: none;
+    }
+    .option-btn.selected .opt-bar {
+      background: rgba(108,99,255,0.18);
+    }
+
+    .opt-label {
+      position: relative;
+      z-index: 1;
+      min-width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+      transition: background 0.25s, color 0.25s;
+    }
+    .option-btn.selected .opt-label {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .opt-content {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .opt-text { line-height: 1.45; }
+
+    .opt-stats {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .opt-stats.visible { opacity: 1; }
+    .opt-percent { font-weight: 600; color: var(--accent2); }
+
+    .opt-check {
+      position: relative;
+      z-index: 1;
+      margin-left: auto;
+      opacity: 0;
+      color: var(--accent2);
+      font-size: 1.1rem;
+      transition: opacity 0.2s;
+      align-self: center;
+    }
+    .option-btn.selected .opt-check { opacity: 1; }
+
+    /* ── SESSION STATS BAR ──────────────────────────────────── */
+    .stats-bar {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      padding: 18px 0 0;
+      margin-top: auto;
+      border-top: 1px solid var(--border);
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .stat-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--text);
+      transition: color 0.3s;
+    }
+
+    .stat-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+
+    /* ── WAITING / ERROR SCREENS ────────────────────────────── */
+    .center-screen {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      text-align: center;
+    }
+
+    .center-icon { font-size: 3.5rem; animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+
+    .center-title { font-size: 1.3rem; font-weight: 600; }
+    .center-sub { font-size: 0.9rem; color: var(--muted); }
+
+    /* ── FOOTER ─────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding-top: 20px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="brand">QA-Webli</div>
+    <div class="connection-badge">
+      <span class="dot" id="dot"></span>
+      <span id="connLabel">Connecting…</span>
+    </div>
+  </header>
+
+  <div id="reconnectBanner">⚡ Reconnecting to session…</div>
+
+  <main id="main">
+    <div class="center-screen">
+      <div class="center-icon">⏳</div>
+      <div class="center-title">Joining session…</div>
+      <div class="center-sub">Please wait</div>
+    </div>
+  </main>
+
+  <footer>QA-Webli · Classroom Polling System</footer>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = {
+  ws: null,
+  connected: false,
+  question: null,     // { number, total, text, options:[{label,text}] }
+  myVote: null,
+  stats: null,        // { totalVotes, totalStudents, options:[{label,count,percentage}] }
+  attempts: 0,
+  maxAttempts: 12,
+};
+
+// ── Student identity (persisted) ───────────────────────────────────────────
+function getStudentId() {
+  const key = 'qa_sid';
+  let id = localStorage.getItem(key);
+  if (!id) {
+    id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID().replace(/-/g,'').slice(0,10)
+      : Math.random().toString(36).slice(2,12);
+    localStorage.setItem(key, id);
+  }
+  return id;
+}
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function wsUrl() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}/hub?studentId=${getStudentId()}`;
+}
+
+function connect() {
+  state.ws = new WebSocket(wsUrl());
+
+  state.ws.onopen = () => {
+    state.connected = true;
+    state.attempts = 0;
+    setConnected(true);
+    document.getElementById('reconnectBanner').style.display = 'none';
+  };
+
+  state.ws.onclose = () => {
+    state.connected = false;
+    setConnected(false);
+    reconnect();
+  };
+
+  state.ws.onerror = () => {
+    state.connected = false;
+    setConnected(false);
+  };
+
+  state.ws.onmessage = ({ data }) => {
+    try { handleMsg(JSON.parse(data)); } catch(e) { console.error(e); }
+  };
+}
+
+function reconnect() {
+  if (state.attempts >= state.maxAttempts) {
+    showError('Connection lost. Please refresh the page.');
+    return;
+  }
+  document.getElementById('reconnectBanner').style.display = 'block';
+  const delay = Math.min(500 * Math.pow(1.8, state.attempts), 12000);
+  state.attempts++;
+  setTimeout(connect, delay);
+}
+
+function send(obj) {
+  if (state.ws && state.ws.readyState === WebSocket.OPEN)
+    state.ws.send(JSON.stringify(obj));
+}
+
+// ── Message handling ───────────────────────────────────────────────────────
+function handleMsg(msg) {
+  switch (msg.type) {
+    case 'question':
+      // New question — reset vote state
+      state.question = msg.data;
+      state.myVote = null;
+      state.stats = null;
+      render();
+      break;
+    case 'stats':
+      state.stats = msg.data;
+      renderStats();
+      break;
+    case 'vote_confirmed':
+      // Server confirmed our vote; keep myVote (set locally)
+      break;
+    case 'session_ended':
+      // Instructor ended the session — stop reconnecting and show end screen
+      state.attempts = state.maxAttempts; // prevents reconnect
+      setConnected(false);
+      showSessionEnded();
+      if (state.ws) state.ws.close();
+      break;
+  }
+}
+
+// ── Voting ─────────────────────────────────────────────────────────────────
+function vote(label) {
+  if (!state.question) return;
+  state.myVote = label;
+  send({ type: 'vote', option: label });
+  render();
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+function render() {
+  const q = state.question;
+  if (!q) return;
+
+  const pct = Math.round((q.number / q.total) * 100);
+  const optionsHtml = q.options.map(o => {
+    const sel = state.myVote === o.label ? 'selected' : '';
+    return `
+      <button class="option-btn ${sel}" onclick="vote('${esc(o.label)}')">
+        <div class="opt-bar" id="bar-${esc(o.label)}"></div>
+        <div class="opt-label">${esc(o.label)}</div>
+        <div class="opt-content">
+          <div class="opt-text">${esc(o.text)}</div>
+          <div class="opt-stats" id="stats-${esc(o.label)}">
+            <span class="opt-percent" id="pct-${esc(o.label)}">0%</span>
+            <span id="votes-${esc(o.label)}">0 votes</span>
+          </div>
+        </div>
+        <div class="opt-check">✓</div>
+      </button>`;
+  }).join('');
+
+  document.getElementById('main').innerHTML = `
+    <div class="card">
+      <div class="q-meta">
+        <span class="q-badge">Question ${q.number}</span>
+        <span class="q-progress">${q.number} / ${q.total}</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-bar-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="q-text" id="qtext"></div>
+      <div class="options">${optionsHtml}</div>
+      <div class="stats-bar">
+        <div class="stat-item">
+          <span class="stat-value" id="totalVotes">—</span>
+          <span class="stat-label">Votes</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="totalStudents">—</span>
+          <span class="stat-label">Participants</span>
+        </div>
+      </div>
+    </div>`;
+
+  // Render question text with code-block support
+  renderQuestionText(q.text);
+
+  // Apply any existing stats
+  if (state.stats) renderStats();
+}
+
+function renderQuestionText(rawText) {
+  const el = document.getElementById('qtext');
+  if (!el) return;
+
+  // Split on fenced code blocks: ```lang\ncode\n```
+  const fenceRe = /```(\w*)\n([\s\S]*?)```/g;
+  let parts = [];
+  let last = 0;
+  let m;
+
+  while ((m = fenceRe.exec(rawText)) !== null) {
+    if (m.index > last) parts.push({ type:'text', value: rawText.slice(last, m.index) });
+    parts.push({ type:'code', lang: m[1], value: m[2] });
+    last = m.index + m[0].length;
+  }
+  if (last < rawText.length) parts.push({ type:'text', value: rawText.slice(last) });
+
+  el.innerHTML = parts.map(p => {
+    if (p.type === 'text') {
+      const txt = escHtml(p.value.trim());
+      return txt ? `<span>${txt}</span>` : '';
+    }
+    let lang = p.lang || 'plaintext';
+    const langMap = { 'mermaid': 'javascript', 'express': 'javascript', 'node': 'javascript', 'vue': 'javascript', 'react': 'javascript' };
+    lang = langMap[lang.toLowerCase()] || lang;
+    
+    // Use hljs if available
+    let highlighted;
+    try {
+      highlighted = hljs.highlight(p.value, { language: lang, ignoreIllegals: true }).value;
+    } catch {
+      highlighted = escHtml(p.value);
+    }
+    return `<pre><code class="hljs language-${escHtml(lang)}">${highlighted}</code></pre>`;
+  }).join('');
+}
+
+function renderStats() {
+  const s = state.stats;
+  if (!s) return;
+
+  const totalVotesEl = document.getElementById('totalVotes');
+  const totalStudentsEl = document.getElementById('totalStudents');
+  if (totalVotesEl) totalVotesEl.textContent = s.totalVotes;
+  if (totalStudentsEl) totalStudentsEl.textContent = s.totalStudents;
+
+  for (const opt of s.options) {
+    const bar   = document.getElementById(`bar-${opt.label}`);
+    const pct   = document.getElementById(`pct-${opt.label}`);
+    const votes = document.getElementById(`votes-${opt.label}`);
+    const stats = document.getElementById(`stats-${opt.label}`);
+
+    if (bar)   bar.style.width = `${opt.percentage}%`;
+    if (pct)   pct.textContent = `${opt.percentage}%`;
+    if (votes) votes.textContent = `${opt.count} vote${opt.count !== 1 ? 's' : ''}`;
+    if (stats) stats.classList.add('visible');
+  }
+}
+
+function setConnected(yes) {
+  const dot = document.getElementById('dot');
+  const lbl = document.getElementById('connLabel');
+  if (!dot || !lbl) return;
+  dot.className = 'dot' + (yes ? ' live' : '');
+  lbl.textContent = yes ? 'Live' : 'Disconnected';
+}
+
+function showError(msg) {
+  document.getElementById('main').innerHTML = `
+    <div class="center-screen">
+      <div class="center-icon">❌</div>
+      <div class="center-title">Connection Error</div>
+      <div class="center-sub">${escHtml(msg)}</div>
+    </div>`;
+}
+
+function showSessionEnded() {
+  document.getElementById('main').innerHTML = `
+    <div class="center-screen">
+      <div class="center-icon">🎓</div>
+      <div class="center-title">Session Ended</div>
+      <div class="center-sub">The instructor has closed this session. Thanks for participating!</div>
+    </div>`;
+  document.getElementById('reconnectBanner').style.display = 'none';
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function esc(s) { return String(s).replace(/[&"'<>]/g, c => ({'&':'&amp;','"':'&quot;',"'":'&#39;','<':'&lt;','>':'&gt;'}[c])); }
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+connect();
+</script>
+</body>
+</html>

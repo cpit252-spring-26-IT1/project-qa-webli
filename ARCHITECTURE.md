@@ -2,9 +2,9 @@
 
 This project follows Domain-Driven Design (DDD) principles. The **domain model** in `QaWebli.Core` lives under [`src/QaWebli.Core/Domain/`](src/QaWebli.Core/Domain/), with core types grouped in **`Entities`**: [`Option`](src/QaWebli.Core/Domain/Entities/Option.cs), [`Question`](src/QaWebli.Core/Domain/Entities/Question.cs), [`Quiz`](src/QaWebli.Core/Domain/Entities/Quiz.cs), and [`Session`](src/QaWebli.Core/Domain/Entities/Session.cs). [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/) exercises these types in a small console demo; higher-level concerns (persistence, web UI) will live in other layers as they are implemented.
 
-[`QaWebli.Infrastructure`](src/QaWebli.Infrastructure/) handles parsing quiz files from disk (splitting question text into `ContentBlock` segments via `ContentBlockParser`) and writing audit logs. [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/) exercises the domain in a Spectre.Console terminal demo with the Strategy + Composite patterns for rendering; higher-level concerns (web UI) will live in other layers as they are implemented.
+[`QaWebli.Infrastructure`](src/QaWebli.Infrastructure/) handles parsing quiz files from disk (splitting question text into `ContentBlock` segments via `ContentBlockParser`), writing audit logs, and hosting an embedded web server so students can join from their phones. [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/) exercises the domain in a Spectre.Console terminal demo with the Strategy + Composite patterns for rendering; higher-level concerns (web UI) will live in other layers as they are implemented.
 
-**Why this layout:** `Option`, `Question`, `Quiz`, and `Session` are small, invariant-focused types. `Question` holds a single prompt and its choices; `Quiz` aggregates multiple `Question` instances under a title; `Session` tracks the live state of a quiz in progress (which question is active, navigation). Builders validate construction so invalid objects never reach the rest of the app. Keeping everything under `Domain/Entities` keeps the model easy to reuse without pulling in infrastructure.
+**Why this layout:** `Option`, `Question`, `Quiz`, and `Session` are small, invariant-focused types. `Question` holds a single prompt and its choices; `Quiz` aggregates multiple `Question` instances under a title; `Session` tracks the live state of a quiz in progress (which question is active, who is connected, navigation). Builders validate construction so invalid objects never reach the rest of the app. Keeping everything under `Domain/Entities` keeps the model easy to reuse without pulling in infrastructure.
 
 **Value objects:** `ContentBlock` is an abstract record with two sealed subtypes (`PlainText` and `CodeBlock`) forming a discriminated union. A question's body is a sequence of these blocks, parsed from Markdown by `ContentBlockParser` so the terminal can render each segment differently.
 
@@ -32,14 +32,14 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 ### 4. Structural: Facade pattern
 
 * **Location:** [`src/QaWebli.Core/Application/Services/SessionFacade.cs`](src/QaWebli.Core/Application/Services/SessionFacade.cs)
-* **Rationale:** `Session` has low-level methods like `MoveNext()` and `MovePrevious()`. Without a facade, every caller would need to call these methods directly AND manually fire events. `SessionFacade` wraps this behind `NextQuestionAsync()` and `PreviousQuestionAsync()`, which both update the session AND publish the appropriate event. The caller does one method call instead of two.
+* **Rationale:** `Session` has low-level methods like `TryMoveNext()` and `TryMovePrevious()`. Without a facade, every caller would need to call these methods directly AND manually fire events. `SessionFacade` wraps this behind `NextQuestionAsync()` and `PreviousQuestionAsync()`, which both update the session AND publish the appropriate event. It also exposes `AddStudentAsync()` / `RemoveStudentAsync()` so the web server can register student connections through the same event pipeline. The caller does one method call instead of two.
 
 ### 5. Behavioral: Observer pattern
 
 * **Location:** [`src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs`](src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs) (contract), [`src/QaWebli.Core/Application/Services/SessionFacade.cs`](src/QaWebli.Core/Application/Services/SessionFacade.cs) (subject)
-* **Concrete Observers:** [`AuditLogger.cs`](src/QaWebli.Infrastructure/Logging/AuditLogger.cs)
+* **Concrete Observers:** [`AuditLogger.cs`](src/QaWebli.Infrastructure/Logging/AuditLogger.cs), [`PollingHub.cs`](src/QaWebli.Infrastructure/Server/PollingHub.cs)
 * **Domain Events:** [`src/QaWebli.Core/Domain/Events/DomainEvents.cs`](src/QaWebli.Core/Domain/Events/DomainEvents.cs) — `QuestionChangedEvent`, `VoteReceivedEvent`, `StudentPresenceEvent`
-* **Rationale:** When a quiz session changes (question navigated, vote cast, student joins), multiple independent things must happen: the terminal re-renders, the audit logger writes the event to disk. Without the Observer pattern, `SessionFacade` would need to directly call methods on each class, creating tight coupling. With the Observer pattern, the facade simply publishes an event, and each observer reacts independently. The facade does not know who is listening or what they do.
+* **Rationale:** When a quiz session changes (question navigated, vote cast, student joins), multiple independent things must happen: the audit logger writes the event to disk, the web hub broadcasts updates to connected students. Without the Observer pattern, `SessionFacade` would need to directly call methods on each class, creating tight coupling. With the Observer pattern, the facade simply publishes an event, and each observer reacts independently. The facade does not know who is listening or what they do.
 
 ### 6. Creational: Singleton pattern
 
@@ -83,6 +83,20 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 
 ---
 
+## Web Server (Kestrel + WebSocket)
+
+Not a GoF pattern — this is an infrastructure feature. Documented here for completeness.
+
+* **Location:** [`src/QaWebli.Infrastructure/Server/WebServer.cs`](src/QaWebli.Infrastructure/Server/WebServer.cs), [`src/QaWebli.Infrastructure/Server/PollingHub.cs`](src/QaWebli.Infrastructure/Server/PollingHub.cs), [`src/QaWebli.Infrastructure/Server/Resources/client.html`](src/QaWebli.Infrastructure/Server/Resources/client.html)
+* **How it works:**
+  1. `WebServer` starts Kestrel on the presenter's local IP and a configurable port (default 8080).
+  2. When a student opens the URL in their browser, Kestrel serves the embedded `client.html` — a self-contained page with HTML + CSS + JS in one file.
+  3. The browser opens a WebSocket to `/hub`. The `PollingHub` registers the connection and calls `_manager.AddStudentAsync()`.
+  4. `PollingHub` implements `ISessionObserver`, so when the presenter navigates to a new question, the hub receives the `QuestionChangedEvent` and broadcasts the new question as JSON to every connected student.
+  5. When the presenter quits, `PollingHub.CloseAllAsync()` sends a "session_ended" message to every student and closes their WebSocket connections gracefully.
+
+---
+
 ## Terminal demo
 
 Run:
@@ -106,7 +120,7 @@ Interactive session — use ← → arrow keys to navigate questions, Q to quit.
     C  Factory Method     ← white
     D  Prototype          ← white
 
-  ← → Navigate | Q Quit               ← dim grey
+  ← → Navigate | Q Quit   |   0 student(s)  http://192.168.1.5:8080
 ```
 
 **Question with a code block:**
@@ -133,7 +147,7 @@ Interactive session — use ← → arrow keys to navigate questions, Q to quit.
     C  9
     D  0
 
-  ← → Navigate | Q Quit
+  ← → Navigate | Q Quit   |   0 student(s)  http://192.168.1.5:8080
 ```
 
-Colors: cyan outer panel border, cyan bold question number, dim total count, grey inner code panel border with language tag, green ✓ on correct option, bold option labels, dim navigation hint. Each navigation triggers a `QuestionChangedEvent` published to all subscribed observers. The `AuditLogger` singleton writes each event to `logs/qa-session-YYYYMMDD-HHmmss.log`.
+Colors: cyan outer panel border, cyan bold question number, dim total count, grey inner code panel border with language tag, green ✓ on correct option, bold option labels, dim navigation hint. Each navigation triggers a `QuestionChangedEvent` published to all subscribed observers. The `AuditLogger` singleton writes each event to `logs/qa-session-YYYYMMDD-HHmmss.log`. Students can open the server URL on their phone to see questions update live.

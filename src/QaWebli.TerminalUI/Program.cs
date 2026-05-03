@@ -6,6 +6,7 @@ using QaWebli.Domain.Events;
 using QaWebli.Infrastructure.Logging;
 using QaWebli.Presentation;
 using Spectre.Console;
+using QaWebli.Infrastructure.Server;
 
 namespace QaWebli.TerminalUI;
 
@@ -27,12 +28,19 @@ class Program
         facade.Subscribe(new ConsoleObserver(session));
         facade.Subscribe(AuditLogger.Instance);
 
+        // Start web server so students can connect from their phones
+        var hub = new PollingHub(facade);
+        var server = new WebServer(8080, hub);
+        await server.StartAsync();
+        AnsiConsole.MarkupLine($"[green]  ✓[/] Students join at: [link]{server.ServerUrl}[/]");
+        await Task.Delay(600);
+
         AuditLogger.Instance.LogSessionStart(session.Id, session.Quiz.Title);
 
         // Composite + Factory Method — combines all rendering strategies
         var renderer = CompositeQuestionRenderer.Default();
 
-        RenderQuestion(session, renderer);
+        RenderQuestion(session, renderer, server.ServerUrl);
 
         while (true)
         {
@@ -40,12 +48,12 @@ class Program
             if (key.Key == ConsoleKey.RightArrow)
             {
                 await facade.NextQuestionAsync();
-                RenderQuestion(session, renderer);
+                RenderQuestion(session, renderer, server.ServerUrl);
             }
             else if (key.Key == ConsoleKey.LeftArrow)
             {
                 await facade.PreviousQuestionAsync();
-                RenderQuestion(session, renderer);
+                RenderQuestion(session, renderer, server.ServerUrl);
             }
             else if (key.Key == ConsoleKey.Q)
             {
@@ -55,11 +63,13 @@ class Program
 
         AuditLogger.Instance.LogSessionEnd(session.Id);
         AuditLogger.Instance.Dispose();
+        await hub.CloseAllAsync();
+        await server.StopAsync();
     }
 
     // needed AI here the implemetation took a while of trail and error to get right, especially the console rendering with Spectre.Console
 
-    static void RenderQuestion(Session session, CompositeQuestionRenderer renderer)
+    static void RenderQuestion(Session session, CompositeQuestionRenderer renderer, string serverUrl)
     {
         var q = session.CurrentQuestion;
         AnsiConsole.Clear();
@@ -85,7 +95,7 @@ class Program
         }
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[dim]← → Navigate | [bold]Q[/] Quit[/]");
+        AnsiConsole.MarkupLine($"[dim]← → Navigate | [bold]Q[/] Quit[/]   [grey]|[/]   [green]{session.StudentCount}[/] student(s)  [link]{serverUrl}[/]");
     }
 }
 

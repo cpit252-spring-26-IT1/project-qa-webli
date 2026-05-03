@@ -30,9 +30,8 @@ public class SessionFacade
     // Reminder: move to the next question and tell everyone if it worked.
     public async Task NextQuestionAsync()
     {
-        // Reminder: MoveNext() only returns true if there is another question.
-        if (_session.MoveNext())
-            // Reminder: send the new question number to every observer.
+        // Reminder: TryMoveNext returns false if already at the last question.
+        if (_session.TryMoveNext(out _))
             await PublishAsync(obs => obs.OnQuestionChangedAsync(
                 QuestionChangedEvent.Now(_session.CurrentQuestionIndex, _session.Quiz.TotalQuestions)));
     }
@@ -40,11 +39,26 @@ public class SessionFacade
     // Reminder: move to the previous question and tell everyone if it worked.
     public async Task PreviousQuestionAsync()
     {
-        // Reminder: MovePrevious() only returns true if there is an earlier question.
-        if (_session.MovePrevious())
-            // Reminder: send the new question number to every observer.
+        // Reminder: TryMovePrevious returns false if already at the first question.
+        if (_session.TryMovePrevious(out _))
             await PublishAsync(obs => obs.OnQuestionChangedAsync(
                 QuestionChangedEvent.Now(_session.CurrentQuestionIndex, _session.Quiz.TotalQuestions)));
+    }
+
+    // Reminder: register a student joining the session and notify observers.
+    public async Task AddStudentAsync(string studentId)
+    {
+        _session.AddStudent(studentId);
+        await PublishAsync(obs => obs.OnStudentPresenceChangedAsync(
+            StudentPresenceEvent.Now(_session.StudentCount, studentId, true)));
+    }
+
+    // Reminder: remove a student who disconnected and notify observers.
+    public async Task RemoveStudentAsync(string studentId)
+    {
+        _session.RemoveStudent(studentId);
+        await PublishAsync(obs => obs.OnStudentPresenceChangedAsync(
+            StudentPresenceEvent.Now(_session.StudentCount, studentId, false)));
     }
 
     // Reminder: run the same action for every observer and wait for all of them.

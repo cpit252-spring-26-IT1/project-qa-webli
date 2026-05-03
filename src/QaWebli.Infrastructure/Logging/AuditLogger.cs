@@ -79,10 +79,7 @@ public sealed class AuditLogger : ISessionObserver, IDisposable
 
     public Task OnVoteReceivedAsync(VoteReceivedEvent e)
     {
-        lock (_lock)
-        {
-            _writer.WriteLine($"[{DateTime.UtcNow:O}] VOTE | Q{e.QuestionIndex + 1} | {e.StudentId} → {e.OptionLabel}");
-        }
+        // Voting is not wired yet
         return Task.CompletedTask;
     }
 
