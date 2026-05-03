@@ -54,13 +54,12 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 
 ### 7. Behavioral: Strategy pattern
 
-* **Location:** [`src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs) (interface), [`src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs) (concrete)
-* **Rationale:** Different types of content require different rendering logic. Plain text just needs escaping and display; code blocks will need syntax highlighting. The Strategy pattern encapsulates each rendering algorithm in its own class, so `Program.cs` just calls `renderer.Render(question)` without knowing which strategy is active. Adding a new content type means adding a new strategy class — no existing code changes.
+* **Location:** [`src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs) (interface), [`src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs) and [`src/QaWebli.TerminalUI/Presentation/CodeBlockRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/CodeBlockRendererStrategy.cs) (concrete)
+* **Rationale:** Different types of content require different rendering logic. Plain text just needs escaping and display; code blocks need their own panel with a language tag. The Strategy pattern encapsulates each rendering algorithm in its own class, so `Program.cs` just calls `renderer.Render(question)` without knowing which strategy is active. Adding a new content type means adding a new strategy class — no existing code changes.
 * **How it works step-by-step:**
   1. `IContentRendererStrategy` defines two methods: `CanRender(Question)` returns `true` if this strategy handles the content, and `Render(Question)` returns a Spectre.Console `IRenderable`.
-  2. `PlainTextRendererStrategy` always returns `true` for `CanRender` and iterates over the question's `Content` blocks, rendering each `ContentBlock.PlainText` segment as escaped white Spectre markup. Code blocks are skipped for now — `CodeBlockRendererStrategy` will handle them in the next commit.
-  3. `Program.cs` declares `IContentRendererStrategy renderer = new PlainTextRendererStrategy()` — swapping the strategy is a one-line change.
-
+  2. `PlainTextRendererStrategy` iterates over the question's `Content` blocks and renders each `ContentBlock.PlainText` segment as escaped white Spectre markup.
+  3. `CodeBlockRendererStrategy` renders each `ContentBlock.CodeBlock` in a grey rounded panel with an optional language tag header.
 ---
 
 ## Terminal demo
