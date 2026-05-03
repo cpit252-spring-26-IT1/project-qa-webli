@@ -2,7 +2,7 @@
 
 This project follows Domain-Driven Design (DDD) principles. The **domain model** in `QaWebli.Core` lives under [`src/QaWebli.Core/Domain/`](src/QaWebli.Core/Domain/), with core types grouped in **`Entities`**: [`Option`](src/QaWebli.Core/Domain/Entities/Option.cs), [`Question`](src/QaWebli.Core/Domain/Entities/Question.cs), [`Quiz`](src/QaWebli.Core/Domain/Entities/Quiz.cs), and [`Session`](src/QaWebli.Core/Domain/Entities/Session.cs). [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/) exercises these types in a small console demo; higher-level concerns (persistence, web UI) will live in other layers as they are implemented.
 
-[`QaWebli.Infrastructure`](src/QaWebli.Infrastructure/) handles parsing quiz files from disk (splitting question text into `ContentBlock` segments via `ContentBlockParser`) and writing audit logs. [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/) exercises the domain in a Spectre.Console terminal demo with the Strategy pattern for rendering; higher-level concerns (web UI) will live in other layers as they are implemented.
+[`QaWebli.Infrastructure`](src/QaWebli.Infrastructure/) handles parsing quiz files from disk (splitting question text into `ContentBlock` segments via `ContentBlockParser`) and writing audit logs. [`QaWebli.TerminalUI`](src/QaWebli.TerminalUI/) exercises the domain in a Spectre.Console terminal demo with the Strategy + Composite patterns for rendering; higher-level concerns (web UI) will live in other layers as they are implemented.
 
 **Why this layout:** `Option`, `Question`, `Quiz`, and `Session` are small, invariant-focused types. `Question` holds a single prompt and its choices; `Quiz` aggregates multiple `Question` instances under a title; `Session` tracks the live state of a quiz in progress (which question is active, navigation). Builders validate construction so invalid objects never reach the rest of the app. Keeping everything under `Domain/Entities` keeps the model easy to reuse without pulling in infrastructure.
 
@@ -55,11 +55,32 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 ### 7. Behavioral: Strategy pattern
 
 * **Location:** [`src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs) (interface), [`src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs) and [`src/QaWebli.TerminalUI/Presentation/CodeBlockRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/CodeBlockRendererStrategy.cs) (concrete)
-* **Rationale:** Different types of content require different rendering logic. Plain text just needs escaping and display; code blocks need their own panel with a language tag. The Strategy pattern encapsulates each rendering algorithm in its own class, so `Program.cs` just calls `renderer.Render(question)` without knowing which strategy is active. Adding a new content type means adding a new strategy class — no existing code changes.
+* **Rationale:** Different types of content require different rendering logic. Plain text just needs escaping and display; code blocks need their own panel with a language tag. The Strategy pattern encapsulates each rendering algorithm in its own class, so the caller just invokes `Render(block)` without knowing which strategy is active. Adding a new content type means adding a new strategy class — no existing code changes.
 * **How it works step-by-step:**
-  1. `IContentRendererStrategy` defines two methods: `CanRender(Question)` returns `true` if this strategy handles the content, and `Render(Question)` returns a Spectre.Console `IRenderable`.
-  2. `PlainTextRendererStrategy` iterates over the question's `Content` blocks and renders each `ContentBlock.PlainText` segment as escaped white Spectre markup.
-  3. `CodeBlockRendererStrategy` renders each `ContentBlock.CodeBlock` in a grey rounded panel with an optional language tag header.
+  1. `IContentRendererStrategy` defines two methods: `CanRender(ContentBlock)` returns `true` if this strategy handles the given block type, and `Render(ContentBlock)` returns a Spectre.Console `IRenderable`.
+  2. `PlainTextRendererStrategy` handles `ContentBlock.PlainText` blocks, rendering them as escaped white Spectre markup.
+  3. `CodeBlockRendererStrategy` handles `ContentBlock.CodeBlock` blocks, rendering them in a grey rounded panel with an optional language tag header.
+
+### 8. Structural: Composite pattern
+
+* **Location:** [`src/QaWebli.TerminalUI/Presentation/CompositeQuestionRenderer.cs`](src/QaWebli.TerminalUI/Presentation/CompositeQuestionRenderer.cs)
+* **Rationale:** A question can contain multiple content blocks in any order: plain text, then a code block, then more text. The Composite pattern lets us treat the collection of renderers as a single unit. `Program.cs` just calls `renderer.RenderQuestion(question)` and gets back one `IRenderable` — it does not need to know how many blocks exist or what types they are.
+* **How it works step-by-step:**
+  1. `CompositeQuestionRenderer` is constructed with a list of `IContentRendererStrategy` objects.
+  2. When `RenderQuestion(question)` is called, it iterates over every `ContentBlock` in the question.
+  3. For each block, it finds the first strategy whose `CanRender(block)` returns `true`.
+  4. It calls that strategy's `Render(block)` method and collects the result.
+  5. All results are combined into a single `Rows` renderable and returned.
+
+### 9. Creational: Factory Method pattern
+
+* **Location:** [`src/QaWebli.TerminalUI/Presentation/CompositeQuestionRenderer.cs`](src/QaWebli.TerminalUI/Presentation/CompositeQuestionRenderer.cs) — the `Default()` static method.
+* **Rationale:** Creating a `CompositeQuestionRenderer` requires knowing which strategies exist and in what order to check them. Instead of forcing `Program.cs` to manually construct and inject all strategies, the `Default()` factory method encapsulates this knowledge and returns a fully configured renderer.
+* **How it works step-by-step:**
+  1. `Program.cs` calls `CompositeQuestionRenderer.Default()`.
+  2. The factory method creates instances of `PlainTextRendererStrategy` and `CodeBlockRendererStrategy` and passes them to the constructor.
+  3. The caller receives a fully configured renderer without needing to know what strategies exist internally.
+
 ---
 
 ## Terminal demo
@@ -70,7 +91,9 @@ Run:
 dotnet run --project src/QaWebli.TerminalUI -- sample-quiz.md
 ```
 
-Interactive session — use ← → arrow keys to navigate questions, Q to quit. Questions are rendered through Spectre.Console using the Strategy pattern:
+Interactive session — use ← → arrow keys to navigate questions, Q to quit. Questions are rendered through Spectre.Console using the Strategy + Composite patterns:
+
+**Plain text question:**
 
 ```
 ╭─Q1 / 10──────────────────────────────────────────────────────────────╮
@@ -83,9 +106,34 @@ Interactive session — use ← → arrow keys to navigate questions, Q to quit.
     C  Factory Method     ← white
     D  Prototype          ← white
 
-  [Event] Question changed to 2/10
-
   ← → Navigate | Q Quit               ← dim grey
 ```
 
-Colors: cyan panel border, cyan bold question number, dim total count, green ✓ on correct option, bold option labels, dim navigation hint. Each navigation triggers a `QuestionChangedEvent` published to all subscribed observers. The `AuditLogger` singleton writes each event to `logs/qa-session-YYYYMMDD-HHmmss.log`.
+**Question with a code block:**
+
+```
+╭─Q3 / 6─────────────────────────────────────────╮
+│ What will this C# code output?                 │
+│ ╭─────────────────────────────────────csharp─╮ │
+│ │ using System;                              │ │
+│ │                                            │ │
+│ │ var numbers = new int[] { 1, 2, 3, 4, 5 }; │ │
+│ │ var result = 0;                            │ │
+│ │ foreach (var n in numbers)                 │ │
+│ │ {                                          │ │
+│ │     if (n % 2 == 0)                        │ │
+│ │         result += n;                       │ │
+│ │ }                                          │ │
+│ │ Console.WriteLine(result);                 │ │
+│ ╰────────────────────────────────────────────╯ │
+╰────────────────────────────────────────────────╯
+
+    A  15
+    B  6 ✓
+    C  9
+    D  0
+
+  ← → Navigate | Q Quit
+```
+
+Colors: cyan outer panel border, cyan bold question number, dim total count, grey inner code panel border with language tag, green ✓ on correct option, bold option labels, dim navigation hint. Each navigation triggers a `QuestionChangedEvent` published to all subscribed observers. The `AuditLogger` singleton writes each event to `logs/qa-session-YYYYMMDD-HHmmss.log`.

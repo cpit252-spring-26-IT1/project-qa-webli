@@ -1,4 +1,5 @@
 using QaWebli.Domain.Entities;
+using QaWebli.Domain.ValueObjects;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
@@ -11,10 +12,10 @@ public interface IContentRendererStrategy
 {
     /// Checks if this strategy can handle rendering the given question.
     /// Used to select the appropriate renderer at runtime.
-    bool CanRender(Question question);
+    bool CanRender(ContentBlock block);
 
     /// Renders the question to a Spectre.Console IRenderable for display.
     /// Called only if CanRender() returned true.
 
-    IRenderable Render(Question question);
+    IRenderable Render(ContentBlock block);
 }

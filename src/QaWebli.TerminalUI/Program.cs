@@ -29,8 +29,8 @@ class Program
 
         AuditLogger.Instance.LogSessionStart(session.Id, session.Quiz.Title);
 
-        // Strategy pattern — choose how to render question content
-        IContentRendererStrategy renderer = new PlainTextRendererStrategy();
+        // Composite + Factory Method — combines all rendering strategies
+        var renderer = CompositeQuestionRenderer.Default();
 
         RenderQuestion(session, renderer);
 
@@ -59,13 +59,12 @@ class Program
 
     // needed AI here the implemetation took a while of trail and error to get right, especially the console rendering with Spectre.Console
 
-    static void RenderQuestion(Session session, IContentRendererStrategy renderer)
+    static void RenderQuestion(Session session, CompositeQuestionRenderer renderer)
     {
         var q = session.CurrentQuestion;
         AnsiConsole.Clear();
 
-        // Question body in a panel with a colored border
-        var questionContent = renderer.CanRender(q) ? renderer.Render(q) : new Markup(Markup.Escape(q.RawText));
+        var questionContent = renderer.RenderQuestion(q);
 
         var panel = new Panel(questionContent)
         {

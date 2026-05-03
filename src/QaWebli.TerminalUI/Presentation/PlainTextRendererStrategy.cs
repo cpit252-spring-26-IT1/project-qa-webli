@@ -7,18 +7,11 @@ namespace QaWebli.Presentation;
 
 public sealed class PlainTextRendererStrategy : IContentRendererStrategy
 {
-    public bool CanRender(Question question) => true;
+    public bool CanRender(ContentBlock block) => block is ContentBlock.PlainText;
 
-    public IRenderable Render(Question question)
+    public IRenderable Render(ContentBlock block)
     {
-        var rows = new List<IRenderable>();
-        foreach (var block in question.Content)
-        {
-            if (block is ContentBlock.PlainText plain)
-                rows.Add(new Markup($"[white]{Markup.Escape(plain.Text)}[/]"));
-        }
-        return rows.Count > 0
-            ? new Rows(rows)
-            : new Markup($"[white]{Markup.Escape(question.RawText)}[/]");
+        var plain = (ContentBlock.PlainText)block;
+        return new Markup($"[white]{Markup.Escape(plain.Text)}[/]");
     }
 }
