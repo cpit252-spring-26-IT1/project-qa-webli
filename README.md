@@ -1,4 +1,3 @@
-```markdown
 # Qa-webli
 
 *(QA = Question & Answer | Web = Web Interface | li = Command Line Interface)*
