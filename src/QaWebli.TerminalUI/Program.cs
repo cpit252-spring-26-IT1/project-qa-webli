@@ -4,7 +4,8 @@ using QaWebli.Domain.Entities;
 using QaWebli.Infrastructure.Parsing;
 using QaWebli.Domain.Events;
 using QaWebli.Infrastructure.Logging;
-
+using QaWebli.Presentation;
+using Spectre.Console;
 
 namespace QaWebli.TerminalUI;
 
@@ -28,7 +29,10 @@ class Program
 
         AuditLogger.Instance.LogSessionStart(session.Id, session.Quiz.Title);
 
-        RenderQuestion(session);
+        // Strategy pattern — choose how to render question content
+        IContentRendererStrategy renderer = new PlainTextRendererStrategy();
+
+        RenderQuestion(session, renderer);
 
         while (true)
         {
@@ -36,12 +40,12 @@ class Program
             if (key.Key == ConsoleKey.RightArrow)
             {
                 await facade.NextQuestionAsync();
-                RenderQuestion(session);
+                RenderQuestion(session, renderer);
             }
             else if (key.Key == ConsoleKey.LeftArrow)
             {
                 await facade.PreviousQuestionAsync();
-                RenderQuestion(session);
+                RenderQuestion(session, renderer);
             }
             else if (key.Key == ConsoleKey.Q)
             {
@@ -53,17 +57,36 @@ class Program
         AuditLogger.Instance.Dispose();
     }
 
-    static void RenderQuestion(Session session)
+    // needed AI here the implemetation took a while of trail and error to get right, especially the console rendering with Spectre.Console
+
+    static void RenderQuestion(Session session, IContentRendererStrategy renderer)
     {
         var q = session.CurrentQuestion;
-        Console.Clear();
-        Console.WriteLine($"  Q{q.Number}/{session.Quiz.TotalQuestions} — {session.Quiz.Title}");
-        Console.WriteLine();
-        Console.WriteLine($"  {q.RawText}");
-        Console.WriteLine();
+        AnsiConsole.Clear();
+
+        // Question body in a panel with a colored border
+        var questionContent = renderer.CanRender(q) ? renderer.Render(q) : new Markup(Markup.Escape(q.RawText));
+
+        var panel = new Panel(questionContent)
+        {
+            Header = new PanelHeader($" [cyan bold]Q{q.Number}[/] / [dim]{session.Quiz.TotalQuestions}[/] ", Justify.Left),
+            Border = BoxBorder.Rounded,
+            BorderStyle = new Style(Color.Cyan1),
+            Padding = new Padding(1, 0, 1, 0),
+        };
+        AnsiConsole.Write(panel);
+        AnsiConsole.WriteLine();
+
+        // Options with letter badges
         foreach (var opt in q.Options)
-            Console.WriteLine($"    {opt.Label}) {opt.Text}");
-        Console.WriteLine("\n  ← → Navigate | Q Quit");
+        {
+            var color = opt.IsCorrect ? "green" : "white";
+            var check = opt.IsCorrect ? " ✓" : "";
+            AnsiConsole.MarkupLine($"  [{color}]  [bold]{opt.Label}[/]  {Markup.Escape(opt.Text)}{check}[/]");
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[dim]← → Navigate | [bold]Q[/] Quit[/]");
     }
 }
 
@@ -79,7 +102,7 @@ public class ConsoleObserver : ISessionObserver
         return Task.CompletedTask;
     }
 
-// not yet implemented!
+    // not yet implemented!
     public Task OnVoteReceivedAsync(VoteReceivedEvent e) => Task.CompletedTask;
     public Task OnStudentPresenceChangedAsync(StudentPresenceEvent e) => Task.CompletedTask;
 }
