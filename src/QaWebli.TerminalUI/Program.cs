@@ -1,8 +1,10 @@
 using QaWebli.Application.Interfaces;
 using QaWebli.Application.Services;
-using QaWebli.Domain.Events;
 using QaWebli.Domain.Entities;
 using QaWebli.Infrastructure.Parsing;
+using QaWebli.Domain.Events;
+using QaWebli.Infrastructure.Logging;
+
 
 namespace QaWebli.TerminalUI;
 
@@ -20,7 +22,11 @@ class Program
         var session = new Session.Builder().WithQuiz(quiz).Build();
         var facade = new SessionFacade(session);
 
+        // Subscribe observers
         facade.Subscribe(new ConsoleObserver(session));
+        facade.Subscribe(AuditLogger.Instance);
+
+        AuditLogger.Instance.LogSessionStart(session.Id, session.Quiz.Title);
 
         RenderQuestion(session);
 
@@ -42,6 +48,9 @@ class Program
                 break;
             }
         }
+
+        AuditLogger.Instance.LogSessionEnd(session.Id);
+        AuditLogger.Instance.Dispose();
     }
 
     static void RenderQuestion(Session session)
@@ -70,6 +79,7 @@ public class ConsoleObserver : ISessionObserver
         return Task.CompletedTask;
     }
 
+// not yet implemented!
     public Task OnVoteReceivedAsync(VoteReceivedEvent e) => Task.CompletedTask;
     public Task OnStudentPresenceChangedAsync(StudentPresenceEvent e) => Task.CompletedTask;
 }
