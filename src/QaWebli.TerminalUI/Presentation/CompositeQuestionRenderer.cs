@@ -15,7 +15,7 @@ public sealed class CompositeQuestionRenderer
     }
 
     public static CompositeQuestionRenderer Default() =>
-        new([new PlainTextRendererStrategy(), new CodeBlockRendererStrategy()]);
+        new([new PlainTextRendererStrategy(), new CodeBlockRendererStrategy(), new MathBlockRendererStrategy()]);
 
     public IRenderable RenderQuestion(Question question)
     {

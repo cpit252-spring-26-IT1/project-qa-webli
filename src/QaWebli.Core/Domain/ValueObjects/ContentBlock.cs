@@ -6,4 +6,5 @@ public abstract record ContentBlock
 
     public sealed record PlainText(string Text) : ContentBlock;
     public sealed record CodeBlock(string Language, string Code) : ContentBlock;
+    public sealed record MathBlock(string Expression) : ContentBlock;
 }

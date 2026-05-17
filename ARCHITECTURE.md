@@ -38,15 +38,15 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 
 * **Location:** [`src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs`](src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs) (contract), [`src/QaWebli.Core/Application/Services/SessionFacade.cs`](src/QaWebli.Core/Application/Services/SessionFacade.cs) (subject)
 * **Concrete Observers:** [`AuditLogger.cs`](src/QaWebli.Infrastructure/Logging/AuditLogger.cs), [`PollingHub.cs`](src/QaWebli.Infrastructure/Server/PollingHub.cs), [`ConsoleObserver.cs`](src/QaWebli.TerminalUI/Presentation/ConsoleObserver.cs)
-* **Domain Events:** [`src/QaWebli.Core/Domain/Events/DomainEvents.cs`](src/QaWebli.Core/Domain/Events/DomainEvents.cs) — `QuestionChangedEvent`, `VoteReceivedEvent`, `StudentPresenceEvent`
-* **Rationale:** When a quiz session changes (question navigated, vote cast, student joins), multiple independent things must happen: the audit logger writes the event to disk, the join hub broadcasts updates to connected students, and the `ConsoleObserver` triggers a live terminal UI re-render for the instructor. Without the Observer pattern, `SessionFacade` would need to directly call methods on each class, creating tight coupling. With the Observer pattern, the facade simply publishes an event, and each observer reacts independently. The facade does not know who is listening or what they do.
+* **Domain Events:** [`src/QaWebli.Core/Domain/Events/DomainEvents.cs`](src/QaWebli.Core/Domain/Events/DomainEvents.cs) — `QuestionChangedEvent`, `VoteReceivedEvent`, `StudentPresenceEvent`, `AnswerRevealedEvent`
+* **Rationale:** When a quiz session changes (question navigated, vote cast, student presence updates, answer revealed), multiple independent things must happen: the audit logger writes the event to disk, the join hub broadcasts updates to connected students, and the `ConsoleObserver` triggers a live terminal UI re-render for the instructor. Without the Observer pattern, `SessionFacade` would need to directly call methods on each class, creating tight coupling. With the Observer pattern, the facade simply publishes an event, and each observer reacts independently. The facade does not know who is listening or what they do.
 * **How it works step-by-step:**
-  1. **The Contract:** `ISessionObserver` defines the methods each observer must implement (`OnQuestionChangedAsync`, `OnVoteReceivedAsync`, `OnStudentPresenceChangedAsync`).
+  1. **The Contract:** `ISessionObserver` defines the methods each observer must implement (`OnQuestionChangedAsync`, `OnVoteReceivedAsync`, `OnStudentPresenceChangedAsync`, `OnAnswerRevealedAsync`).
   2. **The Subject:** `SessionFacade` maintains a private list of observers. `Program.cs` calls `facade.Subscribe(observer)` at startup to register them.
-  3. **Event Firing:** When the domain state changes (e.g., `facade.NextQuestionAsync()`), the facade calls its internal `PublishAsync()` method, which iterates over all subscribed observers and fires the event.
-  4. **Observer 1 (`AuditLogger`):** Receives the event and writes a thread-safe log entry to disk so there is a persistent record.
-  5. **Observer 2 (`PollingHub`):** Receives the event and pushes the new state over WebSockets to all connected student phones.
-  6. **Observer 3 (`ConsoleObserver`):** Receives the event and triggers a Spectre.Console UI re-render in the terminal so the instructor immediately sees the new vote counts or question state.
+  3. **Event Firing:** When the domain state changes (e.g., `facade.NextQuestionAsync()` or `facade.RevealAnswerAsync()`), the facade calls its internal `PublishAsync()` method, which iterates over all subscribed observers and fires the event.
+  4. **Observer 1 (`AuditLogger`):** Receives the event and writes a thread-safe log entry to disk so there is a persistent record. Logs are written for started/ended sessions, question navigation, student presence changes, cast votes, and revealed answers.
+  5. **Observer 2 (`PollingHub`):** Receives the event and pushes the new state or the reveal signal over WebSockets to all connected student phones.
+  6. **Observer 3 (`ConsoleObserver`):** Receives the event and triggers a Spectre.Console UI re-render in the terminal so the instructor immediately sees the new vote counts, student presence, or correct answer details.
 
 ### 6. Creational: Singleton pattern
 
@@ -61,12 +61,13 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 
 ### 7. Behavioral: Strategy pattern
 
-* **Location:** [`src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs) (interface), [`src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs) and [`src/QaWebli.TerminalUI/Presentation/CodeBlockRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/CodeBlockRendererStrategy.cs) (concrete)
-* **Rationale:** Different types of content require different rendering logic. Plain text just needs escaping and display; code blocks need syntax highlighting and their own panel with a language tag. The Strategy pattern encapsulates each rendering algorithm in its own class, so the caller just invokes `Render(block)` without knowing which strategy is active. Adding a new content type means adding a new strategy class — no existing code changes (Open/Closed Principle).
+* **Location:** [`src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/IContentRendererStrategy.cs) (interface), [`src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs), [`src/QaWebli.TerminalUI/Presentation/CodeBlockRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/CodeBlockRendererStrategy.cs), and [`src/QaWebli.TerminalUI/Presentation/MathBlockRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/MathBlockRendererStrategy.cs) (concrete)
+* **Rationale:** Different types of content require different rendering logic. Plain text needs escaping and simple rendering; code blocks need syntax highlighting and their own panel with a language tag; math blocks need advanced LaTeX formatting and their own cyan panel with an 'expression' tag. The Strategy pattern encapsulates each rendering algorithm in its own class, so the caller just invokes `Render(block)` without knowing which strategy is active. Adding a new content type means adding a new strategy class — no existing code changes (Open/Closed Principle).
 * **How it works step-by-step:**
   1. `IContentRendererStrategy` defines two methods: `CanRender(ContentBlock)` returns `true` if this strategy handles the given block type, and `Render(ContentBlock)` returns a Spectre.Console `IRenderable`.
-  2. `PlainTextRendererStrategy` handles `ContentBlock.PlainText` blocks, rendering them as escaped white Spectre markup.
-  3. `CodeBlockRendererStrategy` handles `ContentBlock.CodeBlock` blocks. Internally it delegates to the **escape-first syntax highlighting pipeline** (under `Presentation/SyntaxHighlighting/`) which colours keywords, strings, comments, numbers, and type names per language. The strategy then wraps the highlighted output in a grey rounded panel with a language tag header. This demonstrates how the Strategy pattern isolates complex rendering logic — the caller (`CompositeQuestionRenderer`) sees only `CanRender` and `Render`, while the entire syntax highlighting pipeline is encapsulated inside the code block strategy.
+  2. `PlainTextRendererStrategy` handles `ContentBlock.PlainText` blocks by escaping any Spectre markup characters and rendering the text directly as standard copy.
+  3. `CodeBlockRendererStrategy` handles `ContentBlock.CodeBlock` blocks. Internally it delegates to the **escape-first syntax highlighting pipeline** (under `Presentation/SyntaxHighlighting/`) which colours keywords, strings, comments, numbers, and type names per language. The strategy then wraps the highlighted output in a grey rounded panel with a language tag header.
+  4. `MathBlockRendererStrategy` handles `ContentBlock.MathBlock` blocks. It parses LaTeX notation (recursively formatting fractions and replacing integrals, derivatives, limits, and Greek symbols with clean Unicode representations) and displays them inside a styled cyan panel with an 'expression' header.
 
 ### 8. Structural: Composite pattern
 
@@ -85,7 +86,7 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 * **Rationale:** Creating a `CompositeQuestionRenderer` requires knowing which strategies exist and in what order to check them. Instead of forcing `Program.cs` to manually construct and inject all strategies, the `Default()` factory method encapsulates this knowledge and returns a fully configured renderer.
 * **How it works step-by-step:**
   1. `Program.cs` calls `CompositeQuestionRenderer.Default()`.
-  2. The factory method creates instances of `PlainTextRendererStrategy` and `CodeBlockRendererStrategy` and passes them to the constructor.
+  2. The factory method creates instances of `PlainTextRendererStrategy`, `CodeBlockRendererStrategy`, and `MathBlockRendererStrategy` and passes them to the constructor.
   3. The caller receives a fully configured renderer without needing to know what strategies exist internally.
 
 ---
@@ -142,6 +143,20 @@ Not a GoF pattern — this is an infrastructure feature used to let participants
   3. The browser opens a WebSocket to `/hub`. The `PollingHub` registers the connection and calls `_manager.AddStudentAsync()`.
   4. `PollingHub` implements `ISessionObserver`, so when the presenter navigates to a new question, the hub receives the `QuestionChangedEvent` and broadcasts the new question as JSON to every connected student.
   5. When the presenter quits, `PollingHub.CloseAllAsync()` sends a "session_ended" message to every student and closes their WebSocket connections gracefully.
+
+---
+
+## LaTeX Math Formula Support
+
+* **Location:** [`src/QaWebli.Core/Domain/ValueObjects/ContentBlock.cs`](src/QaWebli.Core/Domain/ValueObjects/ContentBlock.cs) (Domain), [`src/QaWebli.Infrastructure/Parsing/ContentBlockParser.cs`](src/QaWebli.Infrastructure/Parsing/ContentBlockParser.cs) (Parser), [`src/QaWebli.TerminalUI/Presentation/MathBlockRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/MathBlockRendererStrategy.cs) (Renderer Strategy), [`src/QaWebli.Infrastructure/Server/Resources/client.html`](src/QaWebli.Infrastructure/Server/Resources/client.html) (Student client)
+* **Purpose:** Enables quiz authors to write mathematical formulations using LaTeX syntax and display them properly in both the terminal UI and the student web page.
+* **Terminal UI Strategy & Unicode Mapping:**
+  - Standard Spectre markup does not support LaTeX rendering natively.
+  - Using the **Strategy Pattern**, we extended the quiz domain with `ContentBlock.MathBlock`. The `ContentBlockParser` detects display math fences (`$$`) and extracts them into dedicated `MathBlock`s, leaving plain text blocks untouched.
+  - The `MathBlockRendererStrategy` executes specifically for `MathBlock`s. It formats LaTeX tokens (e.g. `\sigma`, `\pi`, `\bowtie`, `\land`, `\lor`, `\geq`, `\leq`, `\rightarrow`, `\subset`, `\subseteq`, `\cup`, `\cap`, `\setminus`, `\div`) to their Unicode equivalents (e.g. `σ`, `π`, `⋈`, `∧`, `∨`, `≥`, `≤`, `→`, `⊂`, `⊆`, `∪`, `∩`, `∖`, `÷`), strips formatting markers, and wraps the result in a styled cyan panel to clearly distinguish math expressions from plain text and code blocks.
+* **Student Web Client KaTeX Integration:**
+  - The student web client embeds KaTeX stylesheets and libraries from a CDN dynamically.
+  - When the web client receives the question content, it runs `tryRenderMath()`, which calls KaTeX's `renderMathInElement()` to automatically discover math delimiters `$$...$$` (display mode) or `$..$` (inline mode) and render them into high-quality mathematical representations in the browser.
 
 ---
 

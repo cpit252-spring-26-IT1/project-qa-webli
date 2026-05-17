@@ -8,12 +8,13 @@ You run **one terminal app** as the presenter: it shows each question with **syn
 
 ## Features
 
-- **Terminal-first presenting** — Spectre.Console panels, keyboard navigation (← →), quit with **Q**, readable in classroom lighting.
+- **Terminal-first presenting** — Spectre.Console panels, keyboard navigation (← →), reveal correct answer with **Space**, quit with **Q**, readable in classroom lighting.
 - **Syntax-highlighted code** — Keywords, strings, comments, numbers, and type names are coloured in the terminal using an escape-first pipeline. Supports C#, Python, Java, JavaScript/TypeScript, and SQL.
 - **ASCII QR code** — The presenter status panel renders a scannable QR code encoding the join URL (LAN or ngrok public URL), so students can scan-to-join instantly.
 - **Markdown quizzes with structure** — Questions and options parsed from `.md`; prompts can mix plain text and fenced code blocks without flattening layout.
+- **LaTeX Math support** — Write inline (`$...$`) or block (`$$...$$`) math formulations; student devices render beautiful math using KaTeX, and the presenter terminal displays readable Unicode characters (like `σ`, `π`, `⋈`, `∧`, `∨`).
 - **Live audience voting** — Embedded Kestrel server + WebSocket hub; students tap options; presenter sees counts and percentages update.
-- **Session audit trail** — `AuditLogger` writes timestamped logs under `logs/` for session lifecycle and domain events.
+- **Session audit trail** — `AuditLogger` writes timestamped logs under `logs/` for session lifecycle, student actions (presence, votes), and answer reveals.
 - **One-command `--ngrok`** — Pass `--ngrok` and QA-CLI starts an ngrok tunnel, shows the **public HTTPS URL** + QR code. Fails fast with a clear error if ngrok is missing or misconfigured.
 - **Flexible networking** — Default LAN-friendly URL; optional `--bind` / `--port`; optional **ngrok** for a public HTTPS URL without VPN.
 - **Presenter-only mode** — `--no-student-ui` skips opening any port (see [Why `--no-student-ui`?](#why---no-student-ui)).
@@ -199,6 +200,7 @@ Download a platform zip and at least one quiz file. Unzip the archive, place the
 - **Syntax highlighting** — code blocks inside questions are coloured in the terminal (keywords, strings, comments, numbers, type names).
 - **ASCII QR code** — the join URL is rendered as a scannable QR code in the presenter footer, pinned to the right edge of the terminal.
 - **One-command ngrok** — `--ngrok` flag starts a tunnel, discovers the public URL, and shows it with the QR code automatically.
+- **LaTeX Math support** — KaTeX integration for student browsers and Unicode mapping for the terminal presenter.
 - **Observer-driven UI** — vote and presence events trigger live re-renders via a decoupled `ConsoleObserver`.
 - **CLI extracted** — argument parsing moved to `CliOptions`; `Program.cs` reduced to ~170 lines of clean orchestration.
 - **Trimmed binaries** — self-contained zip files are ~7 MB per platform (down from ~33 MB in v1).

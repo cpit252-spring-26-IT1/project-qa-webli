@@ -7,6 +7,10 @@
   <!-- Highlight.js for code-block rendering in question text -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <!-- KaTeX for math rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" onload="tryRenderMath()"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -195,6 +199,8 @@
     }
     /* Override hljs background to match our theme */
     .hljs { background: transparent !important; }
+
+
 
     /* ── OPTIONS ────────────────────────────────────────────── */
     .options { display: flex; flex-direction: column; gap: 11px; margin-top: 20px; }
@@ -537,6 +543,8 @@ function render() {
 
   // Apply any existing stats
   if (state.stats) renderStats();
+
+  tryRenderMath();
 }
 
 function renderQuestionText(rawText) {
@@ -625,9 +633,23 @@ function showSessionEnded() {
   document.getElementById('reconnectBanner').style.display = 'none';
 }
 
+
+
 // ── Utils ──────────────────────────────────────────────────────────────────
 function esc(s) { return String(s).replace(/[&"'<>]/g, c => ({'&':'&amp;','"':'&quot;',"'":'&#39;','<':'&lt;','>':'&gt;'}[c])); }
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function tryRenderMath() {
+  if (typeof renderMathInElement === 'function') {
+    renderMathInElement(document.body, {
+      delimiters: [
+        {left: '$$', right: '$$', display: true},
+        {left: '$', right: '$', display: false}
+      ],
+      throwOnError: false
+    });
+  }
+}
 
 // ── Boot ───────────────────────────────────────────────────────────────────
 connect();

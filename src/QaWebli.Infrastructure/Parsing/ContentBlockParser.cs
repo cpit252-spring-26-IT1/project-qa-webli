@@ -18,42 +18,84 @@ public static partial class ContentBlockParser
 
         var plainLines = new List<string>();
         var codeLines = new List<string>();
+        var mathLines = new List<string>();
         string? currentLang = null;
         bool inFence = false;
+        bool inMath = false;
 
         foreach (var line in lines)
         {
-            if (!inFence)
+            var trimmedLine = line.TrimEnd();
+            var fullyTrimmed = trimmedLine.Trim();
+
+            if (inFence)
             {
-                var openMatch = FenceOpen().Match(line.TrimEnd());
-                if (openMatch.Success)
-                {
-                    FlushPlain(result, plainLines);
-                    currentLang = openMatch.Groups[1].Value;
-                    inFence = true;
-                    continue;
-                }
-                plainLines.Add(line);
-            }
-            else
-            {
-                if (FenceClose().IsMatch(line.TrimEnd()))
+                if (FenceClose().IsMatch(trimmedLine))
                 {
                     var code = string.Join('\n', codeLines).TrimEnd();
                     result.Add(new ContentBlock.CodeBlock(currentLang ?? string.Empty, code));
                     codeLines.Clear();
                     currentLang = null;
                     inFence = false;
-                    continue;
                 }
-                codeLines.Add(line);
+                else
+                {
+                    codeLines.Add(line);
+                }
+            }
+            else if (inMath)
+            {
+                if (fullyTrimmed == "$$")
+                {
+                    var expr = string.Join('\n', mathLines).Trim();
+                    result.Add(new ContentBlock.MathBlock(expr));
+                    mathLines.Clear();
+                    inMath = false;
+                }
+                else
+                {
+                    mathLines.Add(line);
+                }
+            }
+            else
+            {
+                var openMatch = FenceOpen().Match(trimmedLine);
+                if (openMatch.Success)
+                {
+                    FlushPlain(result, plainLines);
+                    currentLang = openMatch.Groups[1].Value;
+                    inFence = true;
+                }
+                else if (fullyTrimmed.StartsWith("$$") && fullyTrimmed.EndsWith("$$") && fullyTrimmed.Length > 2)
+                {
+                    FlushPlain(result, plainLines);
+                    var expr = fullyTrimmed[2..^2].Trim();
+                    result.Add(new ContentBlock.MathBlock(expr));
+                }
+                else if (fullyTrimmed == "$$")
+                {
+                    FlushPlain(result, plainLines);
+                    inMath = true;
+                }
+                else
+                {
+                    plainLines.Add(line);
+                }
             }
         }
 
         if (inFence && codeLines.Count > 0)
+        {
             result.Add(new ContentBlock.CodeBlock(currentLang ?? string.Empty, string.Join('\n', codeLines).TrimEnd()));
+        }
+        else if (inMath && mathLines.Count > 0)
+        {
+            result.Add(new ContentBlock.MathBlock(string.Join('\n', mathLines).Trim()));
+        }
         else
+        {
             FlushPlain(result, plainLines);
+        }
 
         return result.AsReadOnly();
     }
