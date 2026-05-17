@@ -3,7 +3,7 @@ using QaWebli.Domain.ValueObjects;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace QaWebli.Presentation;
+namespace QaWebli.TerminalUI.Presentation;
 
 public sealed class CompositeQuestionRenderer
 {

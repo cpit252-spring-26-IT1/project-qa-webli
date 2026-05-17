@@ -4,43 +4,39 @@ using QaWebli.Domain.Entities;
 using QaWebli.Infrastructure.Parsing;
 using QaWebli.Domain.Events;
 using QaWebli.Infrastructure.Logging;
-using QaWebli.Presentation;
+using QaWebli.TerminalUI.Presentation;
 using Spectre.Console;
+using Spectre.Console.Rendering;
 using QaWebli.Infrastructure.Server;
+using QaWebli.TerminalUI.Hosting;
 
 namespace QaWebli.TerminalUI;
 
 class Program
 {
     static async Task Main(string[] args)
-    {
-        if (args.Length == 0)
-        {
-            Console.WriteLine("Usage: qa-webli <quiz.md>");
+{
+        var options = CliOptions.Parse(args);
+        if (options is null)
             return;
-        }
 
-        var quiz = MarkdownQuizParser.ParseFile(args[0]);
+        var quizPath = options.ResolveQuizPath();
+        var quiz = MarkdownQuizParser.ParseFile(quizPath);
         var session = new Session.Builder().WithQuiz(quiz).Build();
         var facade = new SessionFacade(session);
 
         // Composite + Factory Method — combines all rendering strategies
         var renderer = CompositeQuestionRenderer.Default();
 
-        // Start web server so students can connect from their phones
-        var hub = new PollingHub(facade);
-        var server = new WebServer(8080, hub);
-        await server.StartAsync();
-        AnsiConsole.MarkupLine($"[green]  ✓[/] Students join at: [link]{server.ServerUrl}[/]");
-        await Task.Delay(600);
+        var (joinUrl, hub, server, tunnel) = await SetupNetworkingAsync(options, facade);
 
         // Subscribe observers — now renderer and server exist
-        facade.Subscribe(new ConsoleObserver(session, () => RenderQuestion(session, renderer, server.ServerUrl)));
+        facade.Subscribe(new ConsoleObserver(() => RenderQuestion(session, renderer, joinUrl)));
         facade.Subscribe(AuditLogger.Instance);
 
         AuditLogger.Instance.LogSessionStart(session.Id, session.Quiz.Title);
 
-        RenderQuestion(session, renderer, server.ServerUrl);
+        RenderQuestion(session, renderer, joinUrl);
 
         while (true)
         {
@@ -48,12 +44,12 @@ class Program
             if (key.Key == ConsoleKey.RightArrow)
             {
                 await facade.NextQuestionAsync();
-                RenderQuestion(session, renderer, server.ServerUrl);
+                RenderQuestion(session, renderer, joinUrl);
             }
             else if (key.Key == ConsoleKey.LeftArrow)
             {
                 await facade.PreviousQuestionAsync();
-                RenderQuestion(session, renderer, server.ServerUrl);
+                RenderQuestion(session, renderer, joinUrl);
             }
             else if (key.Key == ConsoleKey.Q)
             {
@@ -63,19 +59,60 @@ class Program
 
         AuditLogger.Instance.LogSessionEnd(session.Id);
         AuditLogger.Instance.Dispose();
-        await hub.CloseAllAsync();
-        await server.StopAsync();
+        if (hub is not null)
+            await hub.CloseAllAsync();
+        if (server is not null)
+            await server.StopAsync();
+        tunnel?.Dispose();
     }
 
-    // needed AI here the implemetation took a while of trail and error to get right, especially the console rendering with Spectre.Console
+    private static async Task<(string joinUrl, PollingHub? hub, WebServer? server, NgrokTunnel? tunnel)> SetupNetworkingAsync(CliOptions options, SessionFacade facade)
+    {
+        if (!options.EnableStudentUi)
+            return (string.Empty, null, null, null);
 
-    static void RenderQuestion(Session session, CompositeQuestionRenderer renderer, string serverUrl)
+        var hub = new PollingHub(facade);
+        var server = new WebServer(options.Port, hub);
+        await server.StartAsync();
+
+        var scheme = options.Https ? "https" : "http";
+        var host = options.Bind.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase) ? server.LocalIp : options.Bind;
+        var localJoinUrl = $"{scheme}://{host}:{options.Port}";
+        var joinUrl = string.Empty;
+        NgrokTunnel? tunnel = null;
+
+        if (options.Ngrok)
+        {
+            var (ngrokResult, ngrokTunnel) = await NgrokTunnel.StartAsync(options.Port, options.NgrokAuthtoken, preferHttps: true);
+            if (!ngrokResult.Success)
+            {
+                AnsiConsole.MarkupLine($"[red bold]  ✗ ngrok failed:[/] {Markup.Escape(ngrokResult.ErrorMessage ?? "Unknown error")}");
+                Environment.Exit(1);
+            }
+            
+            tunnel = ngrokTunnel;
+            joinUrl = ngrokResult.PublicUrl!;
+            AnsiConsole.MarkupLine($"[green]  ✓[/] Public join (ngrok): [link]{Markup.Escape(joinUrl)}[/]");
+        }
+        else
+        {
+            joinUrl = localJoinUrl;
+            AnsiConsole.MarkupLine($"[green]  ✓[/] Students join at: [link]{Markup.Escape(joinUrl)}[/]");
+        }
+        
+        await Task.Delay(600); // brief pause so user can see connection status
+        return (joinUrl, hub, server, tunnel);
+    }
+
+
+    static void RenderQuestion(Session session, CompositeQuestionRenderer renderer, string joinUrl)
     {
         var q = session.CurrentQuestion;
         var votes = session.GetVoteCounts(session.CurrentQuestionIndex);
         var totalVotes = votes.Values.Sum();
         AnsiConsole.Clear();
 
+        // ── Question content panel ──────────────────────────────────────────
         var questionContent = renderer.RenderQuestion(q);
 
         var panel = new Panel(questionContent)
@@ -88,7 +125,7 @@ class Program
         AnsiConsole.Write(panel);
         AnsiConsole.WriteLine();
 
-        // Options with vote bars
+        // ── Options with vote bars ──────────────────────────────────────────
         var palette = new[] { "green", "aqua", "yellow", "red", "purple", "teal" };
         foreach (var (opt, i) in q.Options.Select((o, idx) => (o, idx)))
         {
@@ -106,36 +143,28 @@ class Program
         }
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine($"[dim]← → Navigate | [bold]Q[/] Quit[/]   [grey]|[/]   [green]{session.StudentCount}[/] student(s)  [grey]|[/]  [yellow]{totalVotes}[/] vote(s)  [link]{serverUrl}[/]");
-    }
-}
 
-public class ConsoleObserver : ISessionObserver
-{
-    private readonly Session _session;
-    private readonly Action _onVote;
+        // ── Footer & QR Code ────────────────────────────────────────────────
+        if (!string.IsNullOrWhiteSpace(joinUrl))
+        {
+            var qrCode = QRGenerator.GenerateCompact(joinUrl);
+            var footerGrid = new Grid().Expand();
+            footerGrid.AddColumn(new GridColumn()); // left aligned
+            footerGrid.AddColumn(new GridColumn().RightAligned()); // QR on the right
 
-    public ConsoleObserver(Session session, Action onVote)
-    {
-        _session = session;
-        _onVote = onVote;
-    }
+            var info = new Rows(
+                new Markup($"[dim]← → Navigate | [bold]Q[/] Quit[/]"),
+                new Text(""),
+                new Markup($"[green]{session.StudentCount}[/] student(s)  [grey]|[/]  [yellow]{totalVotes}[/] vote(s)"),
+                new Markup($"[link]{Markup.Escape(joinUrl)}[/]  [dim]← scan to join[/]")
+            );
 
-    public Task OnQuestionChangedAsync(QuestionChangedEvent e)
-    {
-        Console.WriteLine($"  [Event] Question changed to {e.QuestionIndex + 1}/{e.TotalQuestions}");
-        return Task.CompletedTask;
-    }
-
-    public Task OnVoteReceivedAsync(VoteReceivedEvent e)
-    {
-        _onVote();
-        return Task.CompletedTask;
-    }
-
-    public Task OnStudentPresenceChangedAsync(StudentPresenceEvent e)
-    {
-        _onVote();
-        return Task.CompletedTask;
+            footerGrid.AddRow(info, new Text(qrCode));
+            AnsiConsole.Write(footerGrid);
+        }
+        else
+        {
+            AnsiConsole.MarkupLine($"[dim]← → Navigate | [bold]Q[/] Quit[/]   [grey]|[/]   [grey](student UI disabled)[/]");
+        }
     }
 }

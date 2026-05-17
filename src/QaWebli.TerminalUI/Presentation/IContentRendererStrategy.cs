@@ -3,7 +3,7 @@ using QaWebli.Domain.ValueObjects;
 using Spectre.Console;
 using Spectre.Console.Rendering;
 
-namespace QaWebli.Presentation;
+namespace QaWebli.TerminalUI.Presentation;
 
 /// Strategy pattern: defines how different types of question content are rendered to the terminal.
 /// Implementations decide if they can handle a question and, if so, how to display it.
