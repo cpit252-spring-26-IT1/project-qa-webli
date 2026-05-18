@@ -40,7 +40,24 @@ class Program
 
         while (true)
         {
-            var key = Console.ReadKey(true);
+            ConsoleKeyInfo key;
+            try
+            {
+                key = Console.ReadKey(true);
+                if (key.Key == 0 && key.KeyChar == '\0')
+                {
+                    // Redirected or non-interactive console returning empty keys: wait indefinitely
+                    await Task.Delay(Timeout.Infinite);
+                    break;
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                // Redirected or non-interactive console: wait indefinitely to keep the server running
+                await Task.Delay(Timeout.Infinite);
+                break;
+            }
+
             if (key.Key == ConsoleKey.RightArrow)
             {
                 await facade.NextQuestionAsync();
@@ -50,6 +67,13 @@ class Program
             {
                 await facade.PreviousQuestionAsync();
                 RenderQuestion(session, renderer, joinUrl);
+            }
+            else if (key.Key == ConsoleKey.Spacebar)
+            {
+                if (await facade.RevealAnswerAsync())
+                {
+                    RenderQuestion(session, renderer, joinUrl);
+                }
             }
             else if (key.Key == ConsoleKey.Q)
             {
@@ -137,12 +161,11 @@ class Program
             var empty = barWidth - filled;
 
             var bar = $"[{color}]" + new string('#', filled) + new string('-', empty) + "[/]";
-            /// removed the "✓" for later to add now I want to see without it.
-            var check = opt.IsCorrect ? "" : "";
+            var check = AnswerRevealedRenderer.GetCheckmark(session, opt);
             AnsiConsole.MarkupLine($"  [bold {color}]{opt.Label}[/]  {Markup.Escape(opt.Text)}{check}  {bar}  [grey]{count} ({pct:F0}%)[/]");
         }
 
-        AnsiConsole.WriteLine();
+        AnswerRevealedRenderer.Render(session, q, votes, totalVotes);
 
         // ── Footer & QR Code ────────────────────────────────────────────────
         if (!string.IsNullOrWhiteSpace(joinUrl))
@@ -153,7 +176,7 @@ class Program
             footerGrid.AddColumn(new GridColumn().RightAligned()); // QR on the right
 
             var info = new Rows(
-                new Markup($"[dim]← → Navigate | [bold]Q[/] Quit[/]"),
+                new Markup($"[dim]← → Navigate | [bold]Space[/] Reveal | [bold]Q[/] Quit[/]"),
                 new Text(""),
                 new Markup($"[green]{session.StudentCount}[/] student(s)  [grey]|[/]  [yellow]{totalVotes}[/] vote(s)"),
                 new Markup($"[link]{Markup.Escape(joinUrl)}[/]  [dim]← scan to join[/]")
@@ -164,7 +187,7 @@ class Program
         }
         else
         {
-            AnsiConsole.MarkupLine($"[dim]← → Navigate | [bold]Q[/] Quit[/]   [grey]|[/]   [grey](student UI disabled)[/]");
+            AnsiConsole.MarkupLine($"[dim]← → Navigate | [bold]Space[/] Reveal | [bold]Q[/] Quit[/]   [grey]|[/]   [grey](student UI disabled)[/]");
         }
     }
 }

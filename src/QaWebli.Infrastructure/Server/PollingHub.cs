@@ -41,6 +41,11 @@ public sealed class PollingHub : ISessionObserver
         await BroadcastVoteStatsAsync();
     }
 
+    public async Task OnAnswerRevealedAsync(AnswerRevealedEvent e)
+    {
+        await BroadcastAnswerRevealedAsync(e.CorrectOptionLabel);
+    }
+
     // Connection handling
     public async Task HandleConnectionAsync(WebSocket webSocket, string studentId)
     {
@@ -54,6 +59,10 @@ public sealed class PollingHub : ISessionObserver
             await ListenAsync(webSocket, studentId);
         }
         catch (WebSocketException) { }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Error in WebSocket connection]: {ex}");
+        }
         finally
         {
             _clients.TryRemove(studentId, out _);
@@ -117,6 +126,7 @@ public sealed class PollingHub : ISessionObserver
     {
         var session = _manager.Session;
         var q = session.CurrentQuestion;
+        var isRevealed = session.IsAnswerRevealed(session.CurrentQuestionIndex);
         var payload = new
         {
             type = "question",
@@ -125,10 +135,29 @@ public sealed class PollingHub : ISessionObserver
                 number = q.Number,
                 total = session.Quiz.TotalQuestions,
                 text = q.RawText,
-                options = q.Options.Select(o => new { label = o.Label, text = o.Text }).ToArray()
+                options = q.Options.Select(o => new { label = o.Label, text = o.Text }).ToArray(),
+                isRevealed = isRevealed,
+                correctOptionLabel = isRevealed ? q.CorrectOption?.Label : null
             }
         };
         await SendJsonAsync(ws, JsonSerializer.Serialize(payload));
+    }
+
+    private async Task BroadcastAnswerRevealedAsync(string correctOptionLabel)
+    {
+        var payload = new
+        {
+            type = "reveal_answer",
+            data = new
+            {
+                correctOptionLabel = correctOptionLabel
+            }
+        };
+        var json = JsonSerializer.Serialize(payload);
+        var tasks = _clients.Values
+            .Where(ws => ws.State == WebSocketState.Open)
+            .Select(ws => SendJsonAsync(ws, json));
+        await Task.WhenAll(tasks);
     }
 
     private async Task SendVoteStatsAsync(WebSocket ws)

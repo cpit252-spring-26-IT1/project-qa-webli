@@ -15,4 +15,7 @@ public interface ISessionObserver
 
     // Reminder: used when a student's presence changes.
     Task OnStudentPresenceChangedAsync(StudentPresenceEvent e);
+
+    // Reminder: used when the instructor reveals the answer.
+    Task OnAnswerRevealedAsync(AnswerRevealedEvent e);
 }

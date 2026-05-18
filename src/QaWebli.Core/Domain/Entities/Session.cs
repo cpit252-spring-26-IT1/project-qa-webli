@@ -39,6 +39,23 @@ public sealed class Session
     public void AddStudent(string studentId) => _connectedStudents[studentId] = true;
     public void RemoveStudent(string studentId) => _connectedStudents.TryRemove(studentId, out _);
 
+    // ── Answer Reveal ──────────────────────────────────────────────────
+    private readonly ConcurrentDictionary<int, bool> _revealedAnswers = new();
+
+    public bool IsAnswerRevealed(int questionIndex)
+    {
+        return _revealedAnswers.TryGetValue(questionIndex, out var revealed) && revealed;
+    }
+
+    public bool RevealAnswer(int questionIndex)
+    {
+        var question = Quiz.Questions[questionIndex];
+        if (question.CorrectOption == null)
+            return false;
+
+        return _revealedAnswers.TryAdd(questionIndex, true);
+    }
+
     // ── Voting ─────────────────────────────────────────────────────────
 
     // studentId → optionLabel voted on the indexed question

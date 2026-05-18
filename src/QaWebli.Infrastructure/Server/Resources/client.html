@@ -303,6 +303,32 @@
     }
     .option-btn.selected .opt-check { opacity: 1; }
 
+    .option-btn.correct {
+      border-color: var(--success) !important;
+      background: rgba(16, 185, 129, 0.12) !important;
+      box-shadow: 0 0 22px rgba(16, 185, 129, 0.25) !important;
+    }
+    .option-btn.correct .opt-label {
+      background: var(--success) !important;
+      color: #fff !important;
+    }
+    .option-btn.correct .opt-check {
+      color: var(--success) !important;
+    }
+
+    .option-btn.incorrect {
+      border-color: var(--danger) !important;
+      background: rgba(239, 68, 68, 0.08) !important;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.15) !important;
+    }
+    .option-btn.incorrect .opt-label {
+      background: var(--danger) !important;
+      color: #fff !important;
+    }
+    .option-btn.incorrect .opt-check {
+      color: var(--danger) !important;
+    }
+
     /* ── SESSION STATS BAR ──────────────────────────────────── */
     .stats-bar {
       display: flex;
@@ -474,6 +500,13 @@ function handleMsg(msg) {
     case 'vote_confirmed':
       // Server confirmed our vote; keep myVote (set locally)
       break;
+    case 'reveal_answer':
+      if (state.question) {
+        state.question.isRevealed = true;
+        state.question.correctOptionLabel = msg.data.correctOptionLabel;
+        render();
+      }
+      break;
     case 'session_ended':
       // Instructor ended the session — stop reconnecting and show end screen
       state.attempts = state.maxAttempts; // prevents reconnect
@@ -497,11 +530,30 @@ function render() {
   const q = state.question;
   if (!q) return;
 
+  const isRevealed = q.isRevealed;
+  const correctOptionLabel = q.correctOptionLabel;
+
   const pct = Math.round((q.number / q.total) * 100);
   const optionsHtml = q.options.map(o => {
-    const sel = state.myVote === o.label ? 'selected' : '';
+    let cls = '';
+    if (state.myVote === o.label) cls += ' selected';
+    let icon = '✓';
+
+    if (isRevealed) {
+      if (o.label === correctOptionLabel) {
+        cls += ' correct';
+        icon = '✓';
+      } else if (state.myVote === o.label) {
+        cls += ' incorrect';
+        icon = '✗';
+      }
+    }
+
+    const clickHandler = isRevealed ? '' : `onclick="vote('${esc(o.label)}')"` ;
+    const disabledAttr = isRevealed ? 'disabled' : '';
+
     return `
-      <button class="option-btn ${sel}" onclick="vote('${esc(o.label)}')">
+      <button class="option-btn ${cls}" ${clickHandler} ${disabledAttr}>
         <div class="opt-bar" id="bar-${esc(o.label)}"></div>
         <div class="opt-label">${esc(o.label)}</div>
         <div class="opt-content">
@@ -511,9 +563,47 @@ function render() {
             <span id="votes-${esc(o.label)}">0 votes</span>
           </div>
         </div>
-        <div class="opt-check">✓</div>
+        <div class="opt-check" style="${isRevealed && (o.label === correctOptionLabel || state.myVote === o.label) ? 'opacity: 1;' : ''}">${icon}</div>
       </button>`;
   }).join('');
+
+  let feedbackHtml = '';
+  if (isRevealed) {
+    let correctVotes = 0;
+    let correctPct = 0;
+    let totalVoters = 0;
+
+    if (state.stats && state.stats.options) {
+      totalVoters = state.stats.totalVotes || 0;
+      const correctStat = state.stats.options.find(o => o.label === correctOptionLabel);
+      if (correctStat) {
+        correctVotes = correctStat.count || 0;
+        correctPct = correctStat.percentage || 0;
+      }
+    }
+
+    let statusText = '';
+    let statusColorClass = '';
+    if (state.myVote === correctOptionLabel) {
+      statusText = '🎉 Correct Answer! Well done!';
+      statusColorClass = 'var(--success)';
+    } else if (state.myVote) {
+      statusText = '❌ Incorrect! Better luck next time.';
+      statusColorClass = 'var(--danger)';
+    } else {
+      statusText = `⏱️ Time's up! The correct answer is ${correctOptionLabel}.`;
+      statusColorClass = 'var(--warning)';
+    }
+
+    feedbackHtml = `
+      <div style="margin-top: 20px; padding: 16px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255, 255, 255, 0.02); text-align: center;">
+        <div style="color: ${statusColorClass}; font-weight: 700; font-size: 1.15rem; margin-bottom: 12px;">${statusText}</div>
+        <div style="font-size: 0.95rem; color: var(--text-muted); display: flex; justify-content: space-around; border-top: 1px dashed var(--border); padding-top: 12px;">
+          <div>Correct Answer: <strong style="color: var(--success);">${correctOptionLabel}</strong></div>
+          <div>Got it right: <strong>${correctVotes} / ${totalVoters}</strong> (${correctPct}%)</div>
+        </div>
+      </div>`;
+  }
 
   document.getElementById('main').innerHTML = `
     <div class="card">
@@ -526,6 +616,7 @@ function render() {
       </div>
       <div class="q-text" id="qtext"></div>
       <div class="options">${optionsHtml}</div>
+      ${feedbackHtml}
       <div class="stats-bar">
         <div class="stat-item">
           <span class="stat-value" id="totalVotes">—</span>
@@ -603,6 +694,22 @@ function renderStats() {
     if (pct)   pct.textContent = `${opt.percentage}%`;
     if (votes) votes.textContent = `${opt.count} vote${opt.count !== 1 ? 's' : ''}`;
     if (stats) stats.classList.add('visible');
+  }
+
+  // Dynamically update the results feedback banner stats if active
+  if (state.question && state.question.isRevealed && state.question.correctOptionLabel) {
+    const correctOptionLabel = state.question.correctOptionLabel;
+    const correctStat = s.options.find(o => o.label === correctOptionLabel);
+    if (correctStat) {
+      const feedbackGotRightCount = document.getElementById('feedbackGotRightCount');
+      const feedbackGotRightPct = document.getElementById('feedbackGotRightPct');
+      if (feedbackGotRightCount) {
+        feedbackGotRightCount.textContent = `${correctStat.count} / ${s.totalVotes}`;
+      }
+      if (feedbackGotRightPct) {
+        feedbackGotRightPct.textContent = `${correctStat.percentage}%`;
+      }
+    }
   }
 }
 

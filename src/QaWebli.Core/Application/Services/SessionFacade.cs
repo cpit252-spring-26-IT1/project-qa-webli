@@ -69,6 +69,22 @@ public class SessionFacade
             VoteReceivedEvent.Now(_session.CurrentQuestionIndex, studentId, option)));   
     }
 
+    // Reminder: reveal the correct answer for the current question if it has one.
+    public async Task<bool> RevealAnswerAsync()
+    {
+        if (_session.RevealAnswer(_session.CurrentQuestionIndex))
+        {
+            var correctOption = _session.CurrentQuestion.CorrectOption;
+            if (correctOption != null)
+            {
+                await PublishAsync(obs => obs.OnAnswerRevealedAsync(
+                    AnswerRevealedEvent.Now(_session.CurrentQuestionIndex, correctOption.Label)));
+                return true;
+            }
+        }
+        return false;
+    }
+
     // Reminder: run the same action for every observer and wait for all of them.
     private async Task PublishAsync(Func<ISessionObserver, Task> action)
     {

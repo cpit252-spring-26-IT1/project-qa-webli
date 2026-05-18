@@ -36,4 +36,10 @@ public class ConsoleObserver : ISessionObserver
         _onRenderNeeded();
         return Task.CompletedTask;
     }
+
+    public Task OnAnswerRevealedAsync(AnswerRevealedEvent e)
+    {
+        _onRenderNeeded();
+        return Task.CompletedTask;
+    }
 }

@@ -23,3 +23,11 @@ public sealed record StudentPresenceEvent(int QuestionIndex, string StudentId, b
     public static StudentPresenceEvent Now(int questionIndex, string studentId, bool joined) =>
         new(questionIndex, studentId, joined, DateTime.UtcNow);
 }
+
+// Instructor reveals the correct answer.
+
+public sealed record AnswerRevealedEvent(int QuestionIndex, string CorrectOptionLabel, DateTime Timestamp)
+{
+    public static AnswerRevealedEvent Now(int index, string correctOptionLabel) =>
+        new(index, correctOptionLabel, DateTime.UtcNow);
+}

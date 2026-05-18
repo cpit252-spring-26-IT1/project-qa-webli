@@ -79,7 +79,10 @@ public sealed class AuditLogger : ISessionObserver, IDisposable
 
     public Task OnVoteReceivedAsync(VoteReceivedEvent e)
     {
-        // Voting is not wired yet
+        lock (_lock)
+        {
+            _writer.WriteLine($"[{DateTime.UtcNow:O}] STUDENT_VOTED | {e.StudentId} | Q{e.QuestionIndex + 1} | Option: {e.OptionLabel}");
+        }
         return Task.CompletedTask;
     }
 
@@ -89,6 +92,15 @@ public sealed class AuditLogger : ISessionObserver, IDisposable
         {
             var action = e.Joined ? "JOINED" : "LEFT";
             _writer.WriteLine($"[{DateTime.UtcNow:O}] STUDENT_{action} | {e.StudentId}");
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task OnAnswerRevealedAsync(AnswerRevealedEvent e)
+    {
+        lock (_lock)
+        {
+            _writer.WriteLine($"[{DateTime.UtcNow:O}] ANSWER_REVEALED | Q{e.QuestionIndex + 1} | Correct Option: {e.CorrectOptionLabel}");
         }
         return Task.CompletedTask;
     }
