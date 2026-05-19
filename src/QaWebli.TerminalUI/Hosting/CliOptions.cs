@@ -11,7 +11,9 @@ public sealed record CliOptions(
     bool NoStudentUi,
     bool Https,
     bool Ngrok,
-    string? NgrokAuthtoken)
+    string? NgrokAuthtoken,
+    bool Game = false,
+    int GameTimerSeconds = 10)
 {
     public bool EnableStudentUi => !NoStudentUi;
 
@@ -30,6 +32,8 @@ public sealed record CliOptions(
         var https = false;
         var ngrok = false;
         string? ngrokAuthtoken = null;
+        var game = false;
+        var gameTimerSeconds = 10;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -67,6 +71,17 @@ public sealed record CliOptions(
                 case "--ngrok-authtoken":
                     ngrokAuthtoken = NextValue(args, ref i, "--ngrok-authtoken");
                     break;
+                case "-g":
+                case "--game":
+                    game = true;
+                    break;
+                case "--timer":
+                    if (!int.TryParse(NextValue(args, ref i, "--timer"), out gameTimerSeconds) || gameTimerSeconds <= 0)
+                    {
+                        Console.WriteLine("Invalid --timer value (use an integer > 0).");
+                        return null;
+                    }
+                    break;
                 default:
                     Console.WriteLine($"Unknown argument: {a}");
                     PrintHelp();
@@ -84,7 +99,7 @@ public sealed record CliOptions(
         if (ngrok && string.IsNullOrWhiteSpace(ngrokAuthtoken))
             ngrokAuthtoken = Environment.GetEnvironmentVariable("NGROK_AUTHTOKEN");
 
-        return new CliOptions(quiz, port, bind, noStudentUi, https, ngrok, ngrokAuthtoken);
+        return new CliOptions(quiz, port, bind, noStudentUi, https, ngrok, ngrokAuthtoken, game, gameTimerSeconds);
     }
 
     private static string NextValue(string[] args, ref int i, string flag)
@@ -110,6 +125,8 @@ public sealed record CliOptions(
               --https               Display join URL as https (useful behind tunnels).
               --ngrok               Start ngrok tunnel and print a public join URL.
               --ngrok-authtoken     Optional ngrok authtoken.
+              -g, --game            Enable Kahoot-style game mode with timing and scores.
+              --timer <seconds>     Time limit per question in game mode (default: 10).
               -h, --help            Show help.
             """);
     }

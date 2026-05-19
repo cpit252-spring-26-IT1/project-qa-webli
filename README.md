@@ -18,6 +18,7 @@ You run **one terminal app** as the presenter: it shows each question with **syn
 - **One-command `--ngrok`** — Pass `--ngrok` and QA-CLI starts an ngrok tunnel, shows the **public HTTPS URL** + QR code. Fails fast with a clear error if ngrok is missing or misconfigured.
 - **Flexible networking** — Default LAN-friendly URL; optional `--bind` / `--port`; optional **ngrok** for a public HTTPS URL without VPN.
 - **Presenter-only mode** — `--no-student-ui` skips opening any port (see [Why `--no-student-ui`?](#why---no-student-ui)).
+- **Game mode (`-g`)** — Automated countdown timer per question, time-based scoring (faster correct answer = more points), intermediate leaderboards between questions, and a final podium at the end. Students see their rank and score live after each reveal.
 
 ## Prerequisites (read before you blame the tool)
 
@@ -165,6 +166,28 @@ Rough mapping:
 - **Debugging parsing/rendering** when student traffic is irrelevant.
 
 You lose live remote votes in that mode unless you add another integration later—by design.
+
+---
+
+## Game mode
+
+Run with `-g` to switch from presenter mode into a live game:
+
+```bash
+dotnet run --project src/QaWebli.TerminalUI -- quiz.md -g
+```
+
+With ngrok for remote participants and a custom timer:
+
+```bash
+dotnet run --project src/QaWebli.TerminalUI -- quiz.md -g --ngrok --timer 15
+```
+
+- The **lobby** screen waits for students to join and shows a live player count. Press **Enter** to start.
+- Each question runs a **countdown** (default **10 s**, change with `--timer <seconds>`).
+- Students who answer correctly score points — the faster they answer the higher their score.
+- After each question the **intermediate leaderboard** is shown for 5 s before moving on.
+- After the last question the **final leaderboard** (podium + ranked table) is shown until the presenter presses **Q**.
 
 ---
 

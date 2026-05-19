@@ -31,3 +31,10 @@ public sealed record AnswerRevealedEvent(int QuestionIndex, string CorrectOption
     public static AnswerRevealedEvent Now(int index, string correctOptionLabel) =>
         new(index, correctOptionLabel, DateTime.UtcNow);
 }
+
+// Game over/finished.
+public sealed record GameFinishedEvent(Dictionary<string, int> Leaderboard, DateTime Timestamp)
+{
+    public static GameFinishedEvent Now(Dictionary<string, int> leaderboard) =>
+        new(leaderboard, DateTime.UtcNow);
+}

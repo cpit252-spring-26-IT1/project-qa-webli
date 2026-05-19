@@ -38,12 +38,73 @@ public sealed class PollingHub : ISessionObserver
 
     public async Task OnStudentPresenceChangedAsync(StudentPresenceEvent e)
     {
-        await BroadcastVoteStatsAsync();
+        if (_manager.Session.IsLobbyActive)
+        {
+            await BroadcastLobbyAsync();
+        }
+        else
+        {
+            await BroadcastVoteStatsAsync();
+        }
+    }
+
+    private async Task BroadcastLobbyAsync()
+    {
+        var session = _manager.Session;
+        var payload = new
+        {
+            type = "lobby",
+            data = new
+            {
+                quizTitle = session.Quiz.Title,
+                studentCount = session.StudentCount
+            }
+        };
+        var json = JsonSerializer.Serialize(payload);
+        var tasks = _clients.Values
+            .Where(ws => ws.State == WebSocketState.Open)
+            .Select(ws => SendJsonAsync(ws, json));
+        await Task.WhenAll(tasks);
     }
 
     public async Task OnAnswerRevealedAsync(AnswerRevealedEvent e)
     {
         await BroadcastAnswerRevealedAsync(e.CorrectOptionLabel);
+    }
+
+    public async Task OnGameFinishedAsync(GameFinishedEvent e)
+    {
+        var sorted = e.Leaderboard.OrderByDescending(kv => kv.Value).ToList();
+        var studentRanks = new Dictionary<string, int>();
+        for (int i = 0; i < sorted.Count; i++)
+        {
+            studentRanks[sorted[i].Key] = i + 1;
+        }
+
+        var tasks = _clients.Select(async kv =>
+        {
+            var studentId = kv.Key;
+            var ws = kv.Value;
+            if (ws.State != WebSocketState.Open) return;
+
+            var rank = studentRanks.TryGetValue(studentId, out var r) ? r : sorted.Count + 1;
+            var score = e.Leaderboard.TryGetValue(studentId, out var s) ? s : 0;
+            var totalParticipants = sorted.Count;
+
+            var payload = new
+            {
+                type = "game_finished",
+                data = new
+                {
+                    rank = rank,
+                    score = score,
+                    totalParticipants = totalParticipants
+                }
+            };
+            await SendJsonAsync(ws, JsonSerializer.Serialize(payload));
+        });
+
+        await Task.WhenAll(tasks);
     }
 
     // Connection handling
@@ -125,8 +186,38 @@ public sealed class PollingHub : ISessionObserver
     private async Task SendQuestionAsync(WebSocket ws)
     {
         var session = _manager.Session;
+        if (session.IsLobbyActive)
+        {
+            var lobbyPayload = new
+            {
+                type = "lobby",
+                data = new
+                {
+                    quizTitle = session.Quiz.Title,
+                    studentCount = session.StudentCount
+                }
+            };
+            await SendJsonAsync(ws, JsonSerializer.Serialize(lobbyPayload));
+            return;
+        }
+
         var q = session.CurrentQuestion;
         var isRevealed = session.IsAnswerRevealed(session.CurrentQuestionIndex);
+        var startTimeUtc = session.GetQuestionStartTime(session.CurrentQuestionIndex);
+        var startTimeMs = new DateTimeOffset(startTimeUtc).ToUnixTimeMilliseconds();
+
+        var studentId = _clients.FirstOrDefault(kv => kv.Value == ws).Key;
+        int myScore = 0;
+        int myRank = 1;
+        int totalParticipants = 0;
+        if (studentId != null)
+        {
+            myScore = session.StudentScores.GetValueOrDefault(studentId, 0);
+            var (rank, total) = session.GetStudentRank(studentId);
+            myRank = rank;
+            totalParticipants = total;
+        }
+
         var payload = new
         {
             type = "question",
@@ -137,7 +228,13 @@ public sealed class PollingHub : ISessionObserver
                 text = q.RawText,
                 options = q.Options.Select(o => new { label = o.Label, text = o.Text }).ToArray(),
                 isRevealed = isRevealed,
-                correctOptionLabel = isRevealed ? q.CorrectOption?.Label : null
+                correctOptionLabel = isRevealed ? q.CorrectOption?.Label : null,
+                isGameMode = session.IsGameMode,
+                gameTimerSeconds = session.GameTimerSeconds,
+                startTime = startTimeMs,
+                myScore = myScore,
+                myRank = myRank,
+                totalParticipants = totalParticipants
             }
         };
         await SendJsonAsync(ws, JsonSerializer.Serialize(payload));
@@ -145,18 +242,31 @@ public sealed class PollingHub : ISessionObserver
 
     private async Task BroadcastAnswerRevealedAsync(string correctOptionLabel)
     {
-        var payload = new
+        var session = _manager.Session;
+        var tasks = _clients.Select(async kv =>
         {
-            type = "reveal_answer",
-            data = new
+            var studentId = kv.Key;
+            var ws = kv.Value;
+            if (ws.State != WebSocketState.Open) return;
+
+            int earnedPoints = session.GetPointsEarned(studentId, session.CurrentQuestionIndex);
+            int myScore = session.StudentScores.GetValueOrDefault(studentId, 0);
+            var (rank, total) = session.GetStudentRank(studentId);
+
+            var payload = new
             {
-                correctOptionLabel = correctOptionLabel
-            }
-        };
-        var json = JsonSerializer.Serialize(payload);
-        var tasks = _clients.Values
-            .Where(ws => ws.State == WebSocketState.Open)
-            .Select(ws => SendJsonAsync(ws, json));
+                type = "reveal_answer",
+                data = new
+                {
+                    correctOptionLabel = correctOptionLabel,
+                    earnedPoints = earnedPoints,
+                    myScore = myScore,
+                    myRank = rank,
+                    totalParticipants = total
+                }
+            };
+            await SendJsonAsync(ws, JsonSerializer.Serialize(payload));
+        });
         await Task.WhenAll(tasks);
     }
 

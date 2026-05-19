@@ -21,7 +21,7 @@ public class ConsoleObserver : ISessionObserver
 
     public Task OnQuestionChangedAsync(QuestionChangedEvent e)
     {
-        Console.WriteLine($"  [Event] Question changed to {e.QuestionIndex + 1}/{e.TotalQuestions}");
+        _onRenderNeeded();
         return Task.CompletedTask;
     }
 
@@ -38,6 +38,12 @@ public class ConsoleObserver : ISessionObserver
     }
 
     public Task OnAnswerRevealedAsync(AnswerRevealedEvent e)
+    {
+        _onRenderNeeded();
+        return Task.CompletedTask;
+    }
+
+    public Task OnGameFinishedAsync(GameFinishedEvent e)
     {
         _onRenderNeeded();
         return Task.CompletedTask;

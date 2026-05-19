@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>QA-Webli | Live Poll</title>
+  <title>QA-CLI | Live Poll</title>
   <!-- Highlight.js for code-block rendering in question text -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -91,6 +91,26 @@
       border-radius: 9999px;
       padding: 5px 12px;
       backdrop-filter: blur(10px);
+    }
+
+    .game-score-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, #7928ca, #ff0080);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 6px 12px;
+      box-shadow: 0 4px 12px rgba(255, 0, 128, 0.2);
+    }
+    .game-score-badge .pos {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.78rem;
     }
 
     .dot {
@@ -390,7 +410,8 @@
 <body>
 <div class="container">
   <header>
-    <div class="brand">QA-Webli</div>
+    <div class="brand">QA-CLI</div>
+    <div id="game-badge-container" style="display: none;"></div>
     <div class="connection-badge">
       <span class="dot" id="dot"></span>
       <span id="connLabel">Connecting…</span>
@@ -407,7 +428,7 @@
     </div>
   </main>
 
-  <footer>QA-Webli · Classroom Polling System</footer>
+  <footer>QA-CLI · Classroom Polling System</footer>
 </div>
 
 <script>
@@ -484,12 +505,35 @@ function send(obj) {
 }
 
 // ── Message handling ───────────────────────────────────────────────────────
+function showLobby(data) {
+  if (state.timerInterval) clearInterval(state.timerInterval);
+  const badgeContainer = document.getElementById('game-badge-container');
+  if (badgeContainer) badgeContainer.style.display = 'none';
+
+  document.getElementById('main').innerHTML = `
+    <div class="card" style="text-align: center; padding: 40px 20px;">
+      <div style="font-size: 3.5rem; margin-bottom: 20px;">🎮</div>
+      <h2 style="margin-bottom: 12px; color: var(--accent2);">${esc(data.quizTitle)}</h2>
+      <p style="color: var(--text-muted); font-size: 1.05rem; margin-bottom: 24px;">Joined the game lobby! Waiting for presenter to start...</p>
+      
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 280px; margin: 0 auto;">
+        <div style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px;">Connected Players</div>
+        <div style="font-size: 2.2rem; font-weight: 800; color: var(--success);">${data.studentCount}</div>
+      </div>
+    </div>
+  `;
+}
+
 function handleMsg(msg) {
   switch (msg.type) {
+    case 'lobby':
+      showLobby(msg.data);
+      break;
     case 'question':
       // New question — reset vote state
       state.question = msg.data;
       state.myVote = null;
+      state.voteTime = null;
       state.stats = null;
       render();
       break;
@@ -507,6 +551,9 @@ function handleMsg(msg) {
         render();
       }
       break;
+    case 'game_finished':
+      showGameFinished(msg.data);
+      break;
     case 'session_ended':
       // Instructor ended the session — stop reconnecting and show end screen
       state.attempts = state.maxAttempts; // prevents reconnect
@@ -519,8 +566,9 @@ function handleMsg(msg) {
 
 // ── Voting ─────────────────────────────────────────────────────────────────
 function vote(label) {
-  if (!state.question) return;
+  if (!state.question || state.myVote) return;
   state.myVote = label;
+  state.voteTime = Date.now();
   send({ type: 'vote', option: label });
   render();
 }
@@ -529,6 +577,25 @@ function vote(label) {
 function render() {
   const q = state.question;
   if (!q) return;
+
+  const badgeContainer = document.getElementById('game-badge-container');
+  if (badgeContainer) {
+    if (q.isGameMode) {
+      const score = q.myScore !== undefined ? q.myScore : 0;
+      const rank = q.myRank !== undefined ? q.myRank : 1;
+      const total = q.totalParticipants !== undefined ? q.totalParticipants : 1;
+      badgeContainer.innerHTML = `
+        <div class="game-score-badge">
+          <span class="pos">#${rank} / ${total}</span>
+          <span>${score} pts</span>
+        </div>
+      `;
+      badgeContainer.style.display = 'block';
+    } else {
+      badgeContainer.innerHTML = '';
+      badgeContainer.style.display = 'none';
+    }
+  }
 
   const isRevealed = q.isRevealed;
   const correctOptionLabel = q.correctOptionLabel;
@@ -549,8 +616,8 @@ function render() {
       }
     }
 
-    const clickHandler = isRevealed ? '' : `onclick="vote('${esc(o.label)}')"` ;
-    const disabledAttr = isRevealed ? 'disabled' : '';
+    const clickHandler = (isRevealed || state.myVote) ? '' : `onclick="vote('${esc(o.label)}')"` ;
+    const disabledAttr = (isRevealed || state.myVote) ? 'disabled' : '';
 
     return `
       <button class="option-btn ${cls}" ${clickHandler} ${disabledAttr}>
@@ -582,10 +649,19 @@ function render() {
       }
     }
 
+    let pointsAwarded = 0;
+    if (state.myVote === correctOptionLabel && state.voteTime && q.isGameMode) {
+      const elapsedMs = state.voteTime - q.startTime;
+      const elapsedCentiseconds = Math.floor(elapsedMs / 10);
+      pointsAwarded = Math.max(0, (q.gameTimerSeconds * 100) - elapsedCentiseconds);
+    }
+
     let statusText = '';
     let statusColorClass = '';
     if (state.myVote === correctOptionLabel) {
-      statusText = '🎉 Correct Answer! Well done!';
+      statusText = q.isGameMode 
+        ? `🎉 Correct! <strong>+${pointsAwarded} pts</strong>`
+        : '🎉 Correct Answer! Well done!';
       statusColorClass = 'var(--success)';
     } else if (state.myVote) {
       statusText = '❌ Incorrect! Better luck next time.';
@@ -605,6 +681,13 @@ function render() {
       </div>`;
   }
 
+  const countdownHtml = (q.isGameMode && !isRevealed) ? `
+    <div id="game-countdown-container" style="margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; background: rgba(255, 255, 255, 0.05); padding: 8px 14px; border-radius: 10px; border: 1px solid var(--border);">
+      <span style="font-size: 0.85rem; font-weight: 600; color: var(--accent2); text-transform: uppercase; letter-spacing: 0.05em;">⏱️ Game Mode</span>
+      <span id="countdown-text" style="font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700; color: #ff007f;">${q.gameTimerSeconds.toFixed(2)}s</span>
+    </div>
+  ` : '';
+
   document.getElementById('main').innerHTML = `
     <div class="card">
       <div class="q-meta">
@@ -614,6 +697,7 @@ function render() {
       <div class="progress-bar">
         <div class="progress-bar-fill" style="width:${pct}%"></div>
       </div>
+      ${countdownHtml}
       <div class="q-text" id="qtext"></div>
       <div class="options">${optionsHtml}</div>
       ${feedbackHtml}
@@ -632,10 +716,101 @@ function render() {
   // Render question text with code-block support
   renderQuestionText(q.text);
 
+  // Start/Manage Countdown timer
+  if (q.isGameMode && !isRevealed) {
+    if (state.timerInterval) clearInterval(state.timerInterval);
+
+    const cdText = document.getElementById('countdown-text');
+    const updateCountdown = () => {
+      const elapsedMs = Date.now() - q.startTime;
+      const remainingMs = Math.max(0, (q.gameTimerSeconds * 1000) - elapsedMs);
+      const remainingSecs = (remainingMs / 1000).toFixed(2);
+
+      if (cdText) {
+        cdText.textContent = `${remainingSecs}s`;
+        if (remainingMs < 3000) {
+          cdText.style.color = 'var(--danger)';
+          cdText.style.animation = 'blink 0.5s infinite';
+        } else if (remainingMs < 6000) {
+          cdText.style.color = 'var(--warning)';
+        } else {
+          cdText.style.color = 'var(--accent2)';
+        }
+      }
+
+      if (remainingMs <= 0) {
+        clearInterval(state.timerInterval);
+        state.timerInterval = null;
+        // Time's up! Disable buttons if not voted
+        const btns = document.querySelectorAll('.option-btn');
+        btns.forEach(btn => btn.disabled = true);
+        if (cdText) {
+          cdText.textContent = "Time's Up! ⏱️";
+          cdText.style.color = 'var(--muted)';
+          cdText.style.animation = 'none';
+        }
+      }
+    };
+
+    updateCountdown();
+    state.timerInterval = setInterval(updateCountdown, 30);
+  } else {
+    if (state.timerInterval) {
+      clearInterval(state.timerInterval);
+      state.timerInterval = null;
+    }
+  }
+
   // Apply any existing stats
   if (state.stats) renderStats();
 
   tryRenderMath();
+}
+
+function showGameFinished(data) {
+  if (state.timerInterval) {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+  }
+
+  let emoji = '👏';
+  let title = 'Game Over!';
+  let color = 'var(--text)';
+  let bgGradient = 'rgba(255, 255, 255, 0.05)';
+
+  if (data.rank === 1) {
+    emoji = '👑🏆';
+    title = '1st PLACE!';
+    color = '#ffd700'; // gold
+    bgGradient = 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,165,0,0.1))';
+  } else if (data.rank === 2) {
+    emoji = '🥈🥈';
+    title = '2nd PLACE!';
+    color = '#c0c0c0'; // silver
+    bgGradient = 'linear-gradient(135deg, rgba(192,192,192,0.15), rgba(128,128,128,0.1))';
+  } else if (data.rank === 3) {
+    emoji = '🥉🥉';
+    title = '3rd PLACE!';
+    color = '#cd7f32'; // bronze
+    bgGradient = 'linear-gradient(135deg, rgba(205,127,50,0.15), rgba(139,69,19,0.1))';
+  } else {
+    emoji = '🥳🎈';
+    title = `Rank #${data.rank}`;
+    color = 'var(--accent2)';
+  }
+
+  document.getElementById('main').innerHTML = `
+    <div class="card" style="background: ${bgGradient}; border-color: ${data.rank <= 3 ? color : 'var(--border)'}; box-shadow: ${data.rank <= 3 ? '0 0 35px ' + color + '33' : 'none'}; align-items: center; justify-content: center; text-align: center; gap: 20px; min-height: 380px;">
+      <div style="font-size: 5rem; line-height: 1; animation: float 3s ease-in-out infinite;">${emoji}</div>
+      <div style="font-size: 2.2rem; font-weight: 800; color: ${color}; text-shadow: 0 0 10px ${color}44; text-transform: uppercase; letter-spacing: -0.02em;">${title}</div>
+      <div style="font-size: 1.1rem; color: var(--text); margin-top: 10px;">
+        You finished the game in place <strong style="color: ${color}; font-size: 1.3rem;">#${data.rank}</strong> out of <strong>${data.totalParticipants}</strong> participants.
+      </div>
+      <div style="margin-top: 15px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); padding: 12px 24px; border-radius: 12px; display: inline-block;">
+        <span style="font-size: 0.8rem; text-transform: uppercase; color: var(--muted); display: block; letter-spacing: 0.05em; margin-bottom: 4px;">Total Score</span>
+        <span style="font-size: 2rem; font-weight: 700; color: var(--success); font-family: 'JetBrains Mono', monospace;">${data.score} <span style="font-size: 1rem; color: var(--muted);">pts</span></span>
+      </div>
+    </div>`;
 }
 
 function renderQuestionText(rawText) {

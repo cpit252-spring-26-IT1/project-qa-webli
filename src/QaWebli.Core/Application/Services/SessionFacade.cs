@@ -27,6 +27,15 @@ public class SessionFacade
     // Reminder: add a listener so it gets future updates.
     public void Subscribe(ISessionObserver observer) => _observers.Add(observer);
 
+    // Reminder: start the game, end the lobby mode and announce first question.
+    public async Task StartGameAsync()
+    {
+        _session.IsLobbyActive = false;
+        _session.SetQuestionStartTime(_session.CurrentQuestionIndex, DateTime.UtcNow);
+        await PublishAsync(obs => obs.OnQuestionChangedAsync(
+            QuestionChangedEvent.Now(_session.CurrentQuestionIndex, _session.Quiz.TotalQuestions)));
+    }
+
     // Reminder: move to the next question and tell everyone if it worked.
     public async Task NextQuestionAsync()
     {
@@ -83,6 +92,12 @@ public class SessionFacade
             }
         }
         return false;
+    }
+
+    // Reminder: notify observers that the game is finished and pass the leaderboard.
+    public async Task FinishGameAsync(Dictionary<string, int> leaderboard)
+    {
+        await PublishAsync(obs => obs.OnGameFinishedAsync(GameFinishedEvent.Now(leaderboard)));
     }
 
     // Reminder: run the same action for every observer and wait for all of them.

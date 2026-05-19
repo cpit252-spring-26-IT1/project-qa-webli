@@ -38,7 +38,7 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 
 * **Location:** [`src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs`](src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs) (contract), [`src/QaWebli.Core/Application/Services/SessionFacade.cs`](src/QaWebli.Core/Application/Services/SessionFacade.cs) (subject)
 * **Concrete Observers:** [`AuditLogger.cs`](src/QaWebli.Infrastructure/Logging/AuditLogger.cs), [`PollingHub.cs`](src/QaWebli.Infrastructure/Server/PollingHub.cs), [`ConsoleObserver.cs`](src/QaWebli.TerminalUI/Presentation/ConsoleObserver.cs)
-* **Domain Events:** [`src/QaWebli.Core/Domain/Events/DomainEvents.cs`](src/QaWebli.Core/Domain/Events/DomainEvents.cs) — `QuestionChangedEvent`, `VoteReceivedEvent`, `StudentPresenceEvent`, `AnswerRevealedEvent`
+* **Domain Events:** [`src/QaWebli.Core/Domain/Events/DomainEvents.cs`](src/QaWebli.Core/Domain/Events/DomainEvents.cs) — `QuestionChangedEvent`, `VoteReceivedEvent`, `StudentPresenceEvent`, `AnswerRevealedEvent`, `GameFinishedEvent`
 * **Rationale:** When a quiz session changes (question navigated, vote cast, student presence updates, answer revealed), multiple independent things must happen: the audit logger writes the event to disk, the join hub broadcasts updates to connected students, and the `ConsoleObserver` triggers a live terminal UI re-render for the instructor. Without the Observer pattern, `SessionFacade` would need to directly call methods on each class, creating tight coupling. With the Observer pattern, the facade simply publishes an event, and each observer reacts independently. The facade does not know who is listening or what they do.
 * **How it works step-by-step:**
   1. **The Contract:** `ISessionObserver` defines the methods each observer must implement (`OnQuestionChangedAsync`, `OnVoteReceivedAsync`, `OnStudentPresenceChangedAsync`, `OnAnswerRevealedAsync`).
@@ -88,6 +88,16 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
   1. `Program.cs` calls `CompositeQuestionRenderer.Default()`.
   2. The factory method creates instances of `PlainTextRendererStrategy`, `CodeBlockRendererStrategy`, and `MathBlockRendererStrategy` and passes them to the constructor.
   3. The caller receives a fully configured renderer without needing to know what strategies exist internally.
+
+### 10. Behavioral: Strategy pattern (`IQuizEngine`)
+
+* **Location:** [`src/QaWebli.TerminalUI/Presentation/IQuizEngine.cs`](src/QaWebli.TerminalUI/Presentation/IQuizEngine.cs)
+* **Concrete strategies:** [`ManualQuizEngine.cs`](src/QaWebli.TerminalUI/Presentation/ManualQuizEngine.cs), [`AutomatedGameQuizEngine.cs`](src/QaWebli.TerminalUI/Presentation/AutomatedGameQuizEngine.cs)
+* **Rationale:** The presenter has two fundamentally different execution flows: in normal mode the instructor drives navigation manually with arrow keys; in game mode the engine drives itself — a countdown runs per question, the answer is auto-revealed when the timer expires, an intermediate leaderboard is shown between questions, and a final leaderboard is displayed at the end. `IQuizEngine` defines a single `RunAsync(session, facade, requestRender)` contract and two bool state properties (`InLobby`, `IsFinished`). `PresenterController` selects the correct strategy at construction time based on `session.IsGameMode` — no if/else chains scattered through the rendering code.
+* **How it works step-by-step:**
+  1. `PresenterController` checks `session.IsGameMode` and assigns either `AutomatedGameQuizEngine` or `ManualQuizEngine` to its `IQuizEngine` field.
+  2. `RunAsync` is called once and drives the entire session lifetime.
+  3. `InLobby` and `IsFinished` are read by `PresenterController.RequestRender()` to decide which view to draw (lobby → question → leaderboard).
 
 ---
 
@@ -177,6 +187,26 @@ Not a GoF pattern — this is an infrastructure feature used to let participants
 * **Shutdown:** On presenter exit, kill the ngrok process tree and delete the temp config file (best-effort).
 
 This is **not** a NuGet dependency: it assumes the `ngrok` binary is installed and on `PATH`.
+
+---
+
+## Game Mode (`-g` / `--game`)
+
+* **CLI flags:** `-g` / `--game` to enable; `--timer <seconds>` for countdown duration (default **10 s**).
+* **Domain changes:** `Session` gains `IsGameMode`, `GameTimerSeconds`, `StudentScores` (a `ConcurrentDictionary<string,int>`), and per-question start times tracked by `_questionStartTimes`. `RecordVote` awards time-decayed points on the first correct vote within the timer window: `points = max(0, maxCentiseconds − elapsedCentiseconds)`.
+* **`ISessionObserver` extension:** `GameFinishedEvent` added to [`DomainEvents.cs`](src/QaWebli.Core/Domain/Events/DomainEvents.cs); `ISessionObserver` extended with `OnGameFinishedAsync`. All three observers (`AuditLogger`, `PollingHub`, `ConsoleObserver`) implement it.
+* **`SessionFacade`:** added `StartGameAsync()` (closes the lobby, starts the first timer) and `FinishGameAsync(scores)` (fires `GameFinishedEvent` with final rankings).
+* **Presenter views:**
+  - `LobbyConsoleView` — waiting screen with live player count and QR code; shown until the presenter presses Enter.
+  - `QuestionConsoleView` — existing question view extended with a live countdown timer line in game mode.
+  - `LeaderboardRenderer` — podium layout for top-3 + ranked table for the rest; shown between questions and as the final screen.
+* **Engine flow (`AutomatedGameQuizEngine`):**
+  1. Wait in lobby until Enter is pressed → `facade.StartGameAsync()`.
+  2. Per question: tick countdown, re-render each second; break early if all students voted.
+  3. `facade.RevealAnswerAsync()` → show answer for 5 s.
+  4. Show intermediate leaderboard for 5 s → advance to next question.
+  5. After last question: `facade.FinishGameAsync(scores)` → final leaderboard until Q is pressed.
+* **Student web client:** `client.html` updated with per-question score feedback after reveal, rank display, and a final leaderboard screen.
 
 ---
 

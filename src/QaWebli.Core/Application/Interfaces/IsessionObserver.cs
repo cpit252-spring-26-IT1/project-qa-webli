@@ -18,4 +18,7 @@ public interface ISessionObserver
 
     // Reminder: used when the instructor reveals the answer.
     Task OnAnswerRevealedAsync(AnswerRevealedEvent e);
+
+    // Reminder: used when the game is finished/completed.
+    Task OnGameFinishedAsync(GameFinishedEvent e);
 }
