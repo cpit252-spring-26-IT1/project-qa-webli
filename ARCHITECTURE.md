@@ -56,8 +56,9 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
   1. The class has a `private` constructor, so no external code can call `new AuditLogger()`.
   2. A `private static readonly Lazy<AuditLogger>` field holds the single instance. `Lazy<T>` guarantees thread-safe initialization — even if two threads access `Instance` at the exact same time, the constructor runs only once.
   3. The public `static AuditLogger Instance` property exposes the single instance.
-  4. The constructor automatically creates a `logs/` directory under the solution root and opens a timestamped log file (e.g., `logs/qa-session-20260502-091400.log`).
+  4. The constructor automatically creates a `logs/` directory under the solution root and opens a timestamped log file. The filename prefix is `qa-session-` in normal mode and `game-session-` in game mode. The timestamp is derived in **GMT+3** (`Asia/Riyadh`) so the log name matches the instructor's local time (e.g., `game-session-20260519-114723.log`).
   5. All write operations use a `lock (_lock)` block to ensure thread safety when multiple observers fire events concurrently.
+  6. `OnGameFinishedAsync` logs the final score table as a ranked list so the audit trail records the complete game outcome.
 
 ### 7. Behavioral: Strategy pattern
 

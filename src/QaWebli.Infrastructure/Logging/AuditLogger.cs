@@ -46,9 +46,11 @@ public sealed class AuditLogger : ISessionObserver, IDisposable
         var logDirectory = Path.Combine(ResolveSolutionRoot(), "logs");
         Directory.CreateDirectory(logDirectory);
 
-        // Standard Utc timestamping and qa-session prefix for initial commit.
-        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-        _logFilePath = Path.Combine(logDirectory, $"qa-session-{timestamp}.log");
+        // Name suffix and prefix depends on the game mode status.
+        var timestamp = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, 
+            TimeZoneInfo.FindSystemTimeZoneById("Asia/Riyadh")).ToString("yyyyMMdd-HHmmss");
+        var prefix = _session.IsGameMode ? "game-session" : "qa-session";
+        _logFilePath = Path.Combine(logDirectory, $"{prefix}-{timestamp}.log");
         _writer = new StreamWriter(_logFilePath, append: true)
         {
             AutoFlush = true

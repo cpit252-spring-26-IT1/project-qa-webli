@@ -14,7 +14,7 @@ You run **one terminal app** as the presenter: it shows each question with **syn
 - **Markdown quizzes with structure** — Questions and options parsed from `.md`; prompts can mix plain text and fenced code blocks without flattening layout.
 - **LaTeX Math support** — Write inline (`$...$`) or block (`$$...$$`) math formulations; student devices render beautiful math using KaTeX, and the presenter terminal displays readable Unicode characters (like `σ`, `π`, `⋈`, `∧`, `∨`).
 - **Live audience voting** — Embedded Kestrel server + WebSocket hub; students tap options; presenter sees counts and percentages update.
-- **Session audit trail** — `AuditLogger` writes timestamped logs under `logs/` for session lifecycle, student actions (presence, votes), and answer reveals.
+- **Session audit trail** — `AuditLogger` writes timestamped logs (GMT+3) under `logs/` for session lifecycle, student actions (presence, votes), answer reveals, and — in game mode — a ranked final score table. Log files are prefixed `qa-session-` or `game-session-` based on mode.
 - **One-command `--ngrok`** — Pass `--ngrok` and QA-CLI starts an ngrok tunnel, shows the **public HTTPS URL** + QR code. Fails fast with a clear error if ngrok is missing or misconfigured.
 - **Flexible networking** — Default LAN-friendly URL; optional `--bind` / `--port`; optional **ngrok** for a public HTTPS URL without VPN.
 - **Presenter-only mode** — `--no-student-ui` skips opening any port (see [Why `--no-student-ui`?](#why---no-student-ui)).
