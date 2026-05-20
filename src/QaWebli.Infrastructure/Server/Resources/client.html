@@ -616,7 +616,7 @@ function handleMsg(msg) {
 
 // ── Voting ─────────────────────────────────────────────────────────────────
 function vote(label) {
-  if (!state.question || state.myVote) return;
+  if (!state.question || state.question.isRevealed) return;
   state.myVote = label;
   state.voteTime = Date.now();
   send({ type: 'vote', option: label });
@@ -666,8 +666,8 @@ function render() {
       }
     }
 
-    const clickHandler = (isRevealed || state.myVote) ? '' : `onclick="vote('${esc(o.label)}')"` ;
-    const disabledAttr = (isRevealed || state.myVote) ? 'disabled' : '';
+    const clickHandler = isRevealed ? '' : `onclick="vote('${esc(o.label)}')"` ;
+    const disabledAttr = isRevealed ? 'disabled' : '';
 
     return `
       <button class="option-btn ${cls}" ${clickHandler} ${disabledAttr}>
