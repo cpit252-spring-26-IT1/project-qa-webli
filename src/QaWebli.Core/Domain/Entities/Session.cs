@@ -23,6 +23,17 @@ public sealed class Session
         set => _isLobbyActive = value;
     }
     public ConcurrentDictionary<string, int> StudentScores { get; } = new();
+    public ConcurrentDictionary<string, string> DisplayNames { get; } = new();
+
+    public void SetDisplayName(string studentId, string name)
+    {
+        var trimmed = name?.Trim() ?? string.Empty;
+        if (!string.IsNullOrEmpty(trimmed))
+            DisplayNames[studentId] = trimmed;
+    }
+
+    public string GetDisplayName(string studentId)
+        => DisplayNames.TryGetValue(studentId, out var name) ? name : studentId;
 
     private readonly ConcurrentDictionary<string, bool> _connectedStudents = new();
     private readonly ConcurrentDictionary<int, DateTime> _questionStartTimes = new();

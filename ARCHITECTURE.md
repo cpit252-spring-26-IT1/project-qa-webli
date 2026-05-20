@@ -208,6 +208,7 @@ This is **not** a NuGet dependency: it assumes the `ngrok` binary is installed a
   4. Show intermediate leaderboard for 5 s → advance to next question.
   5. After last question: `facade.FinishGameAsync(scores)` → final leaderboard until Q is pressed.
 * **Student web client:** `client.html` updated with per-question score feedback after reveal, rank display, and a final leaderboard screen.
+* **Player display names:** `Session.DisplayNames` (`ConcurrentDictionary<string,string>`) maps each connection ID to a chosen name. Students set their name in the lobby via a text input; the client sends a `setName` WebSocket message which `PollingHub` forwards to `Session.SetDisplayName`. `GetDisplayName(id)` falls back to the raw connection ID when no name is set. `LeaderboardRenderer` calls `GetDisplayName` so the terminal podium shows human-readable names.
 
 ---
 
@@ -256,57 +257,4 @@ With ngrok (one command):
 dotnet run --project src/QaWebli.TerminalUI -- sample-quiz.md --ngrok
 ```
 
-Interactive session — use ← → arrow keys to navigate questions, Q to quit. Questions are rendered through Spectre.Console using the Strategy + Composite patterns:
 
-**Plain text question:**
-
-```
-╭─Q1 / 10──────────────────────────────────────────────────────────────╮
-│ Which creational pattern ensures an object is fully configured and   │
-│ valid before it exists?                                              │
-╰──────────────────────────────────────────────────────────────────────╯
-
-    A  Builder             #####---------------  1 (25%)
-    B  Singleton           ####################  4 (75%)
-    C  Factory Method      --------------------  0 (0%)
-    D  Prototype           --------------------  0 (0%)
-
-← → Navigate | Q Quit                                           ██████████████  ██  ██
-                                                                ██          ██  ████  ██
-3 student(s)  |  5 vote(s)                                      ██  ██████  ██    ████
-http://192.168.1.5:8080  ← scan to join                         ██  ██████  ██  ██  ██
-                                                                ██████████████  ██  ██
-```
-
-**Question with syntax-highlighted code block:**
-
-```
-╭─Q3 / 6─────────────────────────────────────────╮
-│ What will this C# code output?                 │
-│ ╭─────────────────────────────────────csharp─╮ │
-│ │ using System;                              │ │  ← keyword: blue, type: cyan
-│ │                                            │ │
-│ │ var numbers = new int[] { 1, 2, 3, 4, 5 };│ │  ← numbers: green, keywords: blue
-│ │ var result = 0;                            │ │
-│ │ foreach (var n in numbers)                 │ │
-│ │ {                                          │ │
-│ │     if (n % 2 == 0)                        │ │
-│ │         result += n;                       │ │
-│ │ }                                          │ │
-│ │ Console.WriteLine(result);                 │ │  ← type: cyan
-│ ╰────────────────────────────────────────────╯ │
-╰────────────────────────────────────────────────╯
-
-    A  15                  --------------------  0 (0%)
-    B  6                   ####################  3 (100%)
-    C  9                   --------------------  0 (0%)
-    D  0                   --------------------  0 (0%)
-
-← → Navigate | Q Quit                                           (QR pinned right)
-3 student(s)  |  3 vote(s)
-https://example.ngrok-free.dev  ← scan to join
-```
-
-The footer uses a transparent, borderless `Grid` (no panel borders). The left column shows navigation controls, student count, vote count, and the join URL. The right column pins the QR code to the right edge of the terminal. When `--ngrok` is active, the QR encodes the public HTTPS URL; otherwise it encodes the LAN address.
-
-Colors: cyan outer panel border, cyan bold question number, dim total count, grey inner code panel border with language tag, **blue keywords, gold strings, grey italic comments, green numbers, cyan type names** inside code blocks, coloured vote bars per option, bold option labels, dim navigation hint. Each navigation triggers a `QuestionChangedEvent` published to all subscribed observers. The `AuditLogger` singleton writes each event to `logs/qa-session-YYYYMMDD-HHmmss.log`. Students can open the server URL on their phone (or scan the QR code) to see questions update live.

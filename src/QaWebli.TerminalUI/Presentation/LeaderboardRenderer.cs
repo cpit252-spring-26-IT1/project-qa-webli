@@ -56,17 +56,17 @@ public sealed class LeaderboardRenderer
         podiumGrid.AddColumn(new GridColumn().Centered());
 
         var p1 = first.HasValue 
-            ? new Panel(new Markup($"[yellow bold]👑 1st Place 👑[/]\n\n[yellow bold]{Markup.Escape(first.Value.Key)}[/]\n[bold]{first.Value.Value} pts[/]")) 
+            ? new Panel(new Markup($"[yellow bold]👑 1st Place 👑[/]\n\n[yellow bold]{Markup.Escape(_session.GetDisplayName(first.Value.Key))}[/]\n[bold]{first.Value.Value} pts[/]")) 
                 { Border = BoxBorder.Double, BorderStyle = new Style(Color.Gold1), Height = 8, Padding = new Padding(1, 0, 1, 0) }
             : new Panel(new Text("-")) { Border = BoxBorder.None };
             
         var p2 = second.HasValue 
-            ? new Panel(new Markup($"[grey bold]🥈 2nd Place 🥈[/]\n\n[grey]{Markup.Escape(second.Value.Key)}[/]\n[bold]{second.Value.Value} pts[/]")) 
+            ? new Panel(new Markup($"[grey bold]🥈 2nd Place 🥈[/]\n\n[grey]{Markup.Escape(_session.GetDisplayName(second.Value.Key))}[/]\n[bold]{second.Value.Value} pts[/]")) 
                 { Border = BoxBorder.Rounded, BorderStyle = new Style(Color.Grey), Height = 7, Padding = new Padding(1, 0, 1, 0) }
             : new Panel(new Text("-")) { Border = BoxBorder.None };
 
         var p3 = third.HasValue 
-            ? new Panel(new Markup($"[rgb(205,127,50) bold]🥉 3rd Place 🥉[/]\n\n[rgb(205,127,50)]{Markup.Escape(third.Value.Key)}[/]\n[bold]{third.Value.Value} pts[/]")) 
+            ? new Panel(new Markup($"[rgb(205,127,50) bold]🥉 3rd Place 🥉[/]\n\n[rgb(205,127,50)]{Markup.Escape(_session.GetDisplayName(third.Value.Key))}[/]\n[bold]{third.Value.Value} pts[/]")) 
                 { Border = BoxBorder.Rounded, BorderStyle = new Style(Color.DarkOrange3), Height = 6, Padding = new Padding(1, 0, 1, 0) }
             : new Panel(new Text("-")) { Border = BoxBorder.None };
 
@@ -80,14 +80,14 @@ public sealed class LeaderboardRenderer
             AnsiConsole.MarkupLine("[bold deepskyblue1]✨ Runners Up: [/]");
             var table = new Table().Border(TableBorder.Rounded).BorderColor(Color.DeepSkyBlue1);
             table.AddColumn("[bold]Rank[/]");
-            table.AddColumn("[bold]Student Hash[/]");
+            table.AddColumn("[bold]Player[/]");
             table.AddColumn("[bold]Total Score[/]");
 
             for (int i = 3; i < sorted.Count; i++)
             {
                 table.AddRow(
                     $"#{i + 1}", 
-                    $"[cyan]{sorted[i].Key}[/]", 
+                    $"[cyan]{Markup.Escape(_session.GetDisplayName(sorted[i].Key))}[/]", 
                     $"[green bold]{sorted[i].Value}[/] pts"
                 );
             }

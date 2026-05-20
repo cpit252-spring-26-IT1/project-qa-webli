@@ -441,6 +441,7 @@ const state = {
   stats: null,        // { totalVotes, totalStudents, options:[{label,count,percentage}] }
   attempts: 0,
   maxAttempts: 12,
+  displayName: null,
 };
 
 // ── Student identity (persisted) ───────────────────────────────────────────
@@ -454,6 +455,18 @@ function getStudentId() {
     localStorage.setItem(key, id);
   }
   return id;
+}
+
+function getDisplayName() {
+  return localStorage.getItem('qa_display_name') || '';
+}
+
+function saveDisplayName(name) {
+  const trimmed = name.trim();
+  if (trimmed) {
+    localStorage.setItem('qa_display_name', trimmed);
+    state.displayName = trimmed;
+  }
 }
 
 // ── WebSocket ──────────────────────────────────────────────────────────────
@@ -470,6 +483,9 @@ function connect() {
     state.attempts = 0;
     setConnected(true);
     document.getElementById('reconnectBanner').style.display = 'none';
+    // Re-send display name on every (re)connect so the server always has it.
+    const name = getDisplayName();
+    if (name) send({ type: 'setName', name });
   };
 
   state.ws.onclose = () => {
@@ -510,18 +526,52 @@ function showLobby(data) {
   const badgeContainer = document.getElementById('game-badge-container');
   if (badgeContainer) badgeContainer.style.display = 'none';
 
+  const savedName = getDisplayName();
+
   document.getElementById('main').innerHTML = `
     <div class="card" style="text-align: center; padding: 40px 20px;">
       <div style="font-size: 3.5rem; margin-bottom: 20px;">🎮</div>
       <h2 style="margin-bottom: 12px; color: var(--accent2);">${esc(data.quizTitle)}</h2>
       <p style="color: var(--text-muted); font-size: 1.05rem; margin-bottom: 24px;">Joined the game lobby! Waiting for presenter to start...</p>
-      
+
+      <div style="max-width: 300px; margin: 0 auto 20px;">
+        <label style="display: block; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px;">Your display name</label>
+        <div style="display: flex; gap: 8px;">
+          <input id="name-input" type="text" maxlength="24" placeholder="Enter your name…" value="${esc(savedName)}"
+            style="flex:1; background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 10px;
+                   padding: 10px 14px; color: var(--text); font-size: 1rem; outline: none;"
+          />
+          <button onclick="submitName()" id="name-btn"
+            style="background: var(--accent2); border: none; border-radius: 10px; padding: 10px 16px;
+                   color: #fff; font-weight: 700; cursor: pointer; font-size: 0.9rem;">
+            ✓
+          </button>
+        </div>
+        <div id="name-status" style="font-size: 0.8rem; color: var(--success); margin-top: 6px; min-height: 1em;">
+          ${savedName ? `Playing as <strong>${esc(savedName)}</strong>` : ''}
+        </div>
+      </div>
+
       <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 12px; padding: 16px; max-width: 280px; margin: 0 auto;">
         <div style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px;">Connected Players</div>
         <div style="font-size: 2.2rem; font-weight: 800; color: var(--success);">${data.studentCount}</div>
       </div>
     </div>
   `;
+
+  const input = document.getElementById('name-input');
+  if (input) input.addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
+}
+
+function submitName() {
+  const input = document.getElementById('name-input');
+  if (!input) return;
+  const name = input.value.trim();
+  if (!name) return;
+  saveDisplayName(name);
+  send({ type: 'setName', name });
+  const status = document.getElementById('name-status');
+  if (status) status.innerHTML = `Playing as <strong>${esc(name)}</strong>`;
 }
 
 function handleMsg(msg) {

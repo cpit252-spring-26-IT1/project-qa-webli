@@ -179,6 +179,11 @@ public sealed class PollingHub : ISessionObserver
                     await SendJsonAsync(ws, "{\"type\":\"vote_confirmed\"}");
                 }
             }
+            else if (type == "setName")
+            {
+                var name = doc.RootElement.GetProperty("name").GetString();
+                _manager.Session.SetDisplayName(studentId, name ?? string.Empty);
+            }
         }
         catch { /* malformed message, ignore */ }
     }

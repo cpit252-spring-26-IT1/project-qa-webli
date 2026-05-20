@@ -18,7 +18,7 @@ You run **one terminal app** as the presenter: it shows each question with **syn
 - **One-command `--ngrok`** — Pass `--ngrok` and QA-CLI starts an ngrok tunnel, shows the **public HTTPS URL** + QR code. Fails fast with a clear error if ngrok is missing or misconfigured.
 - **Flexible networking** — Default LAN-friendly URL; optional `--bind` / `--port`; optional **ngrok** for a public HTTPS URL without VPN.
 - **Presenter-only mode** — `--no-student-ui` skips opening any port (see [Why `--no-student-ui`?](#why---no-student-ui)).
-- **Game mode (`-g`)** — Automated countdown timer per question, time-based scoring (faster correct answer = more points), intermediate leaderboards between questions, and a final podium at the end. Students see their rank and score live after each reveal.
+- **Game mode (`-g`)** — Automated countdown timer per question, time-based scoring (faster correct answer = more points), intermediate leaderboards between questions, and a final podium at the end. Students see their rank and score live after each reveal. Players can set a display name in the lobby — the name appears on the terminal leaderboard instead of the raw connection ID.
 
 ## Prerequisites (read before you blame the tool)
 
