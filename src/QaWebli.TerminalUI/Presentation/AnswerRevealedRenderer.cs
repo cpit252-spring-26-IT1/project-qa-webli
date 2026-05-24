@@ -23,7 +23,7 @@ public static class AnswerRevealedRenderer
             var pctCorrect = totalVotes > 0 ? (correctVotes * 100.0 / totalVotes) : 0;
 
             var resultsPanel = new Panel(
-                new Markup($"Correct Option: [bold green]{q.CorrectOption.Label}[/] ({Markup.Escape(q.CorrectOption.Text)})\n" +
+                new Markup($"Correct Option: [bold green]{q.CorrectOption.Label}[/] ({Markup.Escape(ArabicHelper.Reshape(q.CorrectOption.Text))})\n" +
                            $"Total Participants (Votes): [bold]{totalVotes}[/]\n" +
                            $"Got It Right: [bold green]{correctVotes}[/] ({pctCorrect:F0}%)")
             )

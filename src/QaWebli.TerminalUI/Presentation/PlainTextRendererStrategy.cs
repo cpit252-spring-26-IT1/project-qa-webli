@@ -12,6 +12,8 @@ public sealed class PlainTextRendererStrategy : IContentRendererStrategy
     public IRenderable Render(ContentBlock block)
     {
         var plain = (ContentBlock.PlainText)block;
-        return new Markup($"[white]{Markup.Escape(plain.Text)}[/]");
+        var reshapedText = ArabicHelper.Reshape(plain.Text);
+        var markup = new Markup($"[white]{Markup.Escape(reshapedText)}[/]");
+        return ArabicHelper.ContainsArabic(plain.Text) ? new Align(markup, HorizontalAlignment.Right) : markup;
     }
 }

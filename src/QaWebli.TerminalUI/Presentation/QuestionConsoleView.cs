@@ -28,12 +28,12 @@ public sealed class QuestionConsoleView
         var totalVotes = votes.Values.Sum();
         AnsiConsole.Clear();
 
-        // ── Question content panel ──────────────────────────────────────────
         var questionContent = _questionRenderer.RenderQuestion(q);
+        var isArabic = ArabicHelper.ContainsArabic(q.RawText);
 
         var panel = new Panel(questionContent)
         {
-            Header = new PanelHeader($" [cyan bold]Q{q.Number}[/] / [dim]{_session.Quiz.TotalQuestions}[/] ", Justify.Left),
+            Header = new PanelHeader($" [cyan bold]Q{q.Number}[/] / [dim]{_session.Quiz.TotalQuestions}[/] ", isArabic ? Justify.Right : Justify.Left),
             Border = BoxBorder.Rounded,
             BorderStyle = new Style(Color.Cyan1),
             Padding = new Padding(1, 0, 1, 0),
@@ -54,7 +54,16 @@ public sealed class QuestionConsoleView
 
             var bar = $"[{color}]" + new string('#', filled) + new string('-', empty) + "[/]";
             var check = AnswerRevealedRenderer.GetCheckmark(_session, opt);
-            AnsiConsole.MarkupLine($"  [bold {color}]{opt.Label}[/]  {Markup.Escape(opt.Text)}{check}  {bar}  [grey]{count} ({pct:F0}%)[/]");
+            if (ArabicHelper.ContainsArabic(opt.Text))
+            {
+                // Right-aligned for Arabic: Label and bar on the left, text on the right
+                // Prepend RLM (\u200F) to force RTL base direction for the terminal's native BiDi engine
+                AnsiConsole.MarkupLine($"  [grey]({pct:F0}%) {count}[/]  {bar}  {check}\u200F{Markup.Escape(opt.Text)}  [bold {color}]{opt.Label}[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine($"  [bold {color}]{opt.Label}[/]  {Markup.Escape(opt.Text)}{check}  {bar}  [grey]{count} ({pct:F0}%)[/]");
+            }
         }
 
         AnswerRevealedRenderer.Render(_session, q, votes, totalVotes);

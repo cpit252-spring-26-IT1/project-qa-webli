@@ -6,6 +6,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="BidiReshapeSharp" Version="1.2.0" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="Spectre.Console" Version="0.55.2" />
   </ItemGroup>

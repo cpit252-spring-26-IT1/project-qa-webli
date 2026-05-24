@@ -6,7 +6,7 @@ This project follows Domain-Driven Design (DDD) principles. The **domain model**
 
 **Why this layout:** `Option`, `Question`, `Quiz`, and `Session` are small, invariant-focused types. `Question` holds a single prompt and its choices; `Quiz` aggregates multiple `Question` instances under a title; `Session` tracks the live state of a quiz in progress (which question is active, who is connected, navigation). Builders validate construction so invalid objects never reach the rest of the app. Keeping everything under `Domain/Entities` keeps the model easy to reuse without pulling in infrastructure.
 
-**Value objects:** `ContentBlock` is an abstract record with two sealed subtypes (`PlainText` and `CodeBlock`) forming a discriminated union. A question's body is a sequence of these blocks, parsed from Markdown by `ContentBlockParser` so the terminal can render each segment differently.
+**Value objects:** `ContentBlock` is an abstract record with three sealed subtypes (`PlainText`, `CodeBlock`, and `MathBlock`) forming a discriminated union. A question's body is a sequence of these blocks, parsed from Markdown by `ContentBlockParser` so the terminal can render each segment differently.
 
 ---
 
@@ -36,7 +36,7 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 
 ### 5. Behavioral: Observer pattern
 
-* **Location:** [`src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs`](src/QaWebli.Core/Application/Interfaces/ISessionObserver.cs) (contract), [`src/QaWebli.Core/Application/Services/SessionFacade.cs`](src/QaWebli.Core/Application/Services/SessionFacade.cs) (subject)
+* **Location:** [`src/QaWebli.Core/Application/Interfaces/IsessionObserver.cs`](src/QaWebli.Core/Application/Interfaces/IsessionObserver.cs) (contract), [`src/QaWebli.Core/Application/Services/SessionFacade.cs`](src/QaWebli.Core/Application/Services/SessionFacade.cs) (subject)
 * **Concrete Observers:** [`AuditLogger.cs`](src/QaWebli.Infrastructure/Logging/AuditLogger.cs), [`PollingHub.cs`](src/QaWebli.Infrastructure/Server/PollingHub.cs), [`ConsoleObserver.cs`](src/QaWebli.TerminalUI/Presentation/ConsoleObserver.cs)
 * **Domain Events:** [`src/QaWebli.Core/Domain/Events/DomainEvents.cs`](src/QaWebli.Core/Domain/Events/DomainEvents.cs) — `QuestionChangedEvent`, `VoteReceivedEvent`, `StudentPresenceEvent`, `AnswerRevealedEvent`, `GameFinishedEvent`
 * **Rationale:** When a quiz session changes (question navigated, vote cast, student presence updates, answer revealed), multiple independent things must happen: the audit logger writes the event to disk, the join hub broadcasts updates to connected students, and the `ConsoleObserver` triggers a live terminal UI re-render for the instructor. Without the Observer pattern, `SessionFacade` would need to directly call methods on each class, creating tight coupling. With the Observer pattern, the facade simply publishes an event, and each observer reacts independently. The facade does not know who is listening or what they do.
@@ -173,8 +173,8 @@ Not a GoF pattern — this is an infrastructure feature used to let participants
 
 ## CLI entry point and hosting
 
-* **Location:** [`src/QaWebli.TerminalUI/Program.cs`](src/QaWebli.TerminalUI/Program.cs)
-* **Responsibilities:** Parses CLI flags (`--port`, `--bind`, `--no-student-ui`, `--https`, `--ngrok`, `--ngrok-authtoken`, `--quiz`, `-h` / `--help`), resolves the quiz path, wires `SessionFacade` + observers, starts or skips `WebServer` / `PollingHub`, optionally starts ngrok (strict mode — fails fast on error), renders the presenter with syntax-highlighted code and QR status panel, and drives the Spectre.Console presenter loop.
+* **Location:** [`src/QaWebli.TerminalUI/Program.cs`](src/QaWebli.TerminalUI/Program.cs) (orchestration entry point), [`src/QaWebli.TerminalUI/Hosting/CliOptions.cs`](src/QaWebli.TerminalUI/Hosting/CliOptions.cs) (CLI options parser)
+* **Responsibilities:** `CliOptions.cs` parses the CLI flags (`--port`, `--bind`, `--no-student-ui`, `--https`, `--ngrok`, `--ngrok-authtoken`, `--quiz`, `-g` / `--game`, `--timer`, `-h` / `--help`). `Program.cs` acts as the thin entry point: it resolves the quiz path, instantiates domain entities, registers the singleton `AuditLogger` observer, sets up background local/tunnel networking, and hands execution over to `PresenterController` to start the presenter loop.
 
 ---
 
@@ -219,6 +219,7 @@ This is **not** a NuGet dependency: it assumes the `ngrok` binary is installed a
 | Area | Package / framework | Role |
 |------|----------------------|------|
 | Terminal UI | [Spectre.Console](https://github.com/spectreconsole/spectre.console) | Panels, markup, keyboard-driven presenter output. |
+| Arabic shaping | [BidiReshapeSharp](https://www.nuget.org/packages/BidiReshapeSharp/) | Reshapes Arabic text for cleaner terminal display before Spectre renders it. |
 | QR code | [QRCoder 1.6.0](https://www.nuget.org/packages/QRCoder/) | Generates ASCII QR codes for the terminal status panel (`AsciiQRCode`). |
 | Web host | `Microsoft.AspNetCore.App` ([`FrameworkReference`](src/QaWebli.Infrastructure/QaWebli.Infrastructure.csproj) on `QaWebli.Infrastructure`) | Kestrel + WebSockets for embedded `client.html` and `/hub`. |
 | Runtime | **.NET 8** (`net8.0`) | Target framework for all projects. |
@@ -234,6 +235,18 @@ This is **not** a NuGet dependency: it assumes the `ngrok` binary is installed a
 | Asset | Notes |
 |-------|--------|
 | [`client.html`](src/QaWebli.Infrastructure/Server/Resources/client.html) | Embedded resource; uses CDN scripts (e.g. Highlight.js) for code in question text; talks to `/hub` over WebSockets. |
+
+---
+
+## Arabic RTL support
+
+* **Location:** [`src/QaWebli.TerminalUI/Presentation/ArabicHelper.cs`](src/QaWebli.TerminalUI/Presentation/ArabicHelper.cs), [`src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs`](src/QaWebli.TerminalUI/Presentation/PlainTextRendererStrategy.cs), [`src/QaWebli.TerminalUI/Presentation/CompositeQuestionRenderer.cs`](src/QaWebli.TerminalUI/Presentation/CompositeQuestionRenderer.cs), [`src/QaWebli.TerminalUI/Presentation/QuestionConsoleView.cs`](src/QaWebli.TerminalUI/Presentation/QuestionConsoleView.cs), [`src/QaWebli.Infrastructure/Server/Resources/client.html`](src/QaWebli.Infrastructure/Server/Resources/client.html)
+* **Purpose:** Improve readability for Arabic quiz text in both the terminal presenter and the student browser UI.
+* **How it works:**
+  1. `ArabicHelper.ContainsArabic(...)` detects Arabic Unicode ranges.
+  2. `ArabicHelper.Reshape(...)` uses `BidiReshapeSharp` and prepends an RLM marker so the terminal displays joined glyphs more naturally.
+  3. Presenter renderers right-align Arabic question text and option rows while leaving Latin/code content unchanged.
+  4. The student web page uses `dir="auto"` and broader font fallbacks so Arabic text can render without a separate page mode.
 
 ---
 
@@ -256,5 +269,4 @@ With ngrok (one command):
 ```bash
 dotnet run --project src/QaWebli.TerminalUI -- sample-quiz.md --ngrok
 ```
-
 

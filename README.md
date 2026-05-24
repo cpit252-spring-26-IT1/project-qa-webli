@@ -13,6 +13,7 @@ You run **one terminal app** as the presenter: it shows each question with **syn
 - **ASCII QR code** — The presenter status panel renders a scannable QR code encoding the join URL (LAN or ngrok public URL), so students can scan-to-join instantly.
 - **Markdown quizzes with structure** — Questions and options parsed from `.md`; prompts can mix plain text and fenced code blocks without flattening layout.
 - **LaTeX Math support** — Write inline (`$...$`) or block (`$$...$$`) math formulations; student devices render beautiful math using KaTeX, and the presenter terminal displays readable Unicode characters (like `σ`, `π`, `⋈`, `∧`, `∨`).
+- **Arabic RTL support** — Arabic quiz text is reshaped for better terminal glyph joining, right-aligned in presenter views, and shown with RTL-friendly browser settings on the student page.
 - **Live audience voting** — Embedded Kestrel server + WebSocket hub; students tap options; presenter sees counts and percentages update.
 - **Session audit trail** — `AuditLogger` writes timestamped logs (GMT+3) under `logs/` for session lifecycle, student actions (presence, votes), answer reveals, and — in game mode — a ranked final score table. Log files are prefixed `qa-session-` or `game-session-` based on mode.
 - **One-command `--ngrok`** — Pass `--ngrok` and QA-CLI starts an ngrok tunnel, shows the **public HTTPS URL** + QR code. Fails fast with a clear error if ngrok is missing or misconfigured.
@@ -51,6 +52,10 @@ dotnet run --project src/QaWebli.TerminalUI -- sample-quiz.md
 dotnet run --project src/QaWebli.TerminalUI -- sample-quiz-blocks.md
 ```
 
+```bash
+dotnet run --project src/QaWebli.TerminalUI -- arabic-test.md
+```
+
 ### CLI reference (`qa-cli --help`)
 
 Run:
@@ -70,6 +75,9 @@ You should see:
 - **`--ngrok`** — start `ngrok http <port>` and show a **public** join URL + QR code. **Fails fast with a clear error** if ngrok is not available or misconfigured.
 - **`--ngrok-authtoken <token>`** — pass token for this run only (writes a **temporary** ngrok config file; does not replace your global config). If omitted, **`NGROK_AUTHTOKEN`** is used when set; otherwise ngrok uses whatever you already saved with `ngrok config add-authtoken`.
 - **`--no-student-ui`** — no embedded server; presenter-only (votes stay at zero unless you add another path later).
+- **`-g, --game`** — enable Kahoot-style game mode with active countdowns and leaderboards.
+- **`--timer <seconds>`** — time limit per question in game mode (default **10**).
+- **`-h, --help`** — show usage instructions and exit.
 
 ---
 
@@ -244,6 +252,8 @@ This writes `artifacts/v2/qa-cli-v2-*.zip` and `artifacts/v2/sample-quiz.md`. Cr
 ### Quiz file format
 
 Quizzes are written in Markdown — see [`docs/quiz-format.md`](docs/quiz-format.md).
+
+Arabic content can be written directly in the quiz Markdown. Use [`arabic-test.md`](arabic-test.md) as a sample for RTL question and option text.
 
 ## Screenshots
 

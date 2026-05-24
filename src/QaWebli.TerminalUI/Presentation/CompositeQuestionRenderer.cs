@@ -27,11 +27,18 @@ public sealed class CompositeQuestionRenderer
             if (renderer is not null)
                 rows.Add(renderer.Render(block));
             else
-                rows.Add(new Markup(Markup.Escape(block.ToString() ?? string.Empty)));
+            {
+                var reshapedStr = ArabicHelper.Reshape(block.ToString() ?? string.Empty);
+                var markup = new Markup(Markup.Escape(reshapedStr));
+                rows.Add(ArabicHelper.ContainsArabic(reshapedStr) ? new Align(markup, HorizontalAlignment.Right) : markup);
+            }
         }
 
-        return rows.Count > 0
-            ? new Rows(rows)
-            : new Markup($"[white]{Markup.Escape(question.RawText)}[/]");
+        if (rows.Count > 0)
+            return new Rows(rows);
+            
+        var fallbackStr = ArabicHelper.Reshape(question.RawText);
+        var fallbackMarkup = new Markup($"[white]{Markup.Escape(fallbackStr)}[/]");
+        return ArabicHelper.ContainsArabic(question.RawText) ? new Align(fallbackMarkup, HorizontalAlignment.Right) : fallbackMarkup;
     }
 }
