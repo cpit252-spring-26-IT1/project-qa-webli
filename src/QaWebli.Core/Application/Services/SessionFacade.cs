@@ -59,7 +59,7 @@ public class SessionFacade
     {
         _session.AddStudent(studentId);
         await PublishAsync(obs => obs.OnStudentPresenceChangedAsync(
-            StudentPresenceEvent.Now(_session.StudentCount, studentId, true)));
+            StudentPresenceEvent.Now(_session.CurrentQuestionIndex, studentId, true)));
     }
 
     // Reminder: remove a student who disconnected and notify observers.
@@ -67,7 +67,7 @@ public class SessionFacade
     {
         _session.RemoveStudent(studentId);
         await PublishAsync(obs => obs.OnStudentPresenceChangedAsync(
-            StudentPresenceEvent.Now(_session.StudentCount, studentId, false)));
+            StudentPresenceEvent.Now(_session.CurrentQuestionIndex, studentId, false)));
     }
 
     // Reminder: record a student's vote and notify observers.

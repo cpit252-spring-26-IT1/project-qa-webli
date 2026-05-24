@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\QaWebli.Core\QaWebli.Core.csproj" />
     <ProjectReference Include="..\QaWebli.Infrastructure\QaWebli.Infrastructure.csproj" />
+    <ProjectReference Include="..\QaWebli.TerminalUI\QaWebli.TerminalUI.csproj" />
   </ItemGroup>
 
 </Project>

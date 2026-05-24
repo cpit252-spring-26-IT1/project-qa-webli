@@ -54,8 +54,8 @@ Course-required Gang of Four (GoF) patterns stay **next to the code they constru
 * **Rationale:** The audit logger writes to a single file on disk. If multiple instances existed, they would fight over the file handle and corrupt the log. The Singleton pattern guarantees exactly one `AuditLogger` instance exists for the entire lifetime of the application.
 * **How it works step-by-step:**
   1. The class has a `private` constructor, so no external code can call `new AuditLogger()`.
-  2. A `private static readonly Lazy<AuditLogger>` field holds the single instance. `Lazy<T>` guarantees thread-safe initialization — even if two threads access `Instance` at the exact same time, the constructor runs only once.
-  3. The public `static AuditLogger Instance` property exposes the single instance.
+  2. `Initialize(Session)` creates the single active instance for the current run.
+  3. The public `static AuditLogger Instance` property exposes that initialized instance and throws if startup skipped initialization.
   4. The constructor automatically creates a `logs/` directory under the solution root and opens a timestamped log file. The filename prefix is `qa-session-` in normal mode and `game-session-` in game mode. The timestamp is derived in **GMT+3** (`Asia/Riyadh`) so the log name matches the instructor's local time (e.g., `game-session-20260519-114723.log`).
   5. All write operations use a `lock (_lock)` block to ensure thread safety when multiple observers fire events concurrently.
   6. `OnGameFinishedAsync` logs the final score table as a ranked list so the audit trail records the complete game outcome.
@@ -250,6 +250,19 @@ This is **not** a NuGet dependency: it assumes the `ngrok` binary is installed a
 
 ---
 
+## Testing approach
+
+The automated test suite is intentionally small and centered on the largest user-facing behaviors rather than every helper method.
+
+- `QuizParserTests` validates successful Markdown quiz loading and rejection of invalid quiz input.
+- `SessionScoringTests` covers vote counting, score awarding, late answers, vote changes, and display-name behavior in game mode.
+- `CliOptionsTests` verifies the user-facing `-g` and `--ngrok` modes are parsed correctly.
+- `PresentationPatternTests` adds one small Observer check (`ConsoleObserver`) and one small Strategy check (`PlainTextRendererStrategy`) so the documented patterns are exercised without turning the suite into pattern-only tests.
+
+At the time of writing, the suite contains **16 tests** and is designed to protect the project’s main runtime flows.
+
+---
+
 ## Terminal demo
 
 Run:
@@ -269,4 +282,3 @@ With ngrok (one command):
 ```bash
 dotnet run --project src/QaWebli.TerminalUI -- sample-quiz.md --ngrok
 ```
-

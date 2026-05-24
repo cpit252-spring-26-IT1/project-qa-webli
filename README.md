@@ -255,6 +255,23 @@ Quizzes are written in Markdown — see [`docs/quiz-format.md`](docs/quiz-format
 
 Arabic content can be written directly in the quiz Markdown. Use [`arabic-test.md`](arabic-test.md) as a sample for RTL question and option text.
 
+## Testing
+
+Run:
+
+```bash
+dotnet test QaWebli.sln
+```
+
+The current automated suite contains **16 tests** and focuses on the main project behavior:
+
+- loading and rejecting quiz Markdown inputs
+- game/session scoring and vote handling
+- CLI mode flags like `-g` and `--ngrok`
+- small runtime checks for the Observer and Strategy patterns used in presentation
+
+The goal of the suite is to validate the parts of the project users actually experience, rather than exhaustively test small internal helpers.
+
 ## Screenshots
 
 See the [Architecture document](ARCHITECTURE.md#terminal-demo) for annotated ASCII renderings of both plain-text and code-block question layouts, including the QR footer.

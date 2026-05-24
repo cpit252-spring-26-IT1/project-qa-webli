@@ -118,4 +118,51 @@ public class SessionScoringTests
         Assert.Equal(2, counts["B"]);
         Assert.Equal(0, counts["C"]);
     }
+
+    [Fact]
+    public void RecordVote_GameMode_LateCorrectAnswerAwardsNoPoints()
+    {
+        var session = new Session.Builder()
+            .WithQuiz(CreateSampleQuiz())
+            .WithGameMode(true)
+            .WithGameTimerSeconds(1)
+            .Build();
+        session.SetQuestionStartTime(0, DateTime.UtcNow.AddSeconds(-2));
+
+        session.RecordVote("student1", 0, "B");
+
+        Assert.Equal(0, session.GetPointsEarned("student1", 0));
+        Assert.Equal(0, session.StudentScores.GetValueOrDefault("student1", 0));
+    }
+
+    [Fact]
+    public void RecordVote_GameMode_ChangedVoteDoesNotAwardPointsTwice()
+    {
+        var session = new Session.Builder()
+            .WithQuiz(CreateSampleQuiz())
+            .WithGameMode(true)
+            .WithGameTimerSeconds(10)
+            .Build();
+
+        session.RecordVote("student1", 0, "A");
+        session.RecordVote("student1", 0, "B");
+
+        Assert.Equal(0, session.GetPointsEarned("student1", 0));
+        Assert.Equal(1, session.TotalVotesCast);
+        Assert.Equal(1, session.GetVoteCounts(0)["B"]);
+    }
+
+    [Fact]
+    public void DisplayName_UsesTrimmedNameAndFallsBackToStudentId()
+    {
+        var session = new Session.Builder()
+            .WithQuiz(CreateSampleQuiz())
+            .Build();
+
+        Assert.Equal("student1", session.GetDisplayName("student1"));
+
+        session.SetDisplayName("student1", "  Amal  ");
+
+        Assert.Equal("Amal", session.GetDisplayName("student1"));
+    }
 }
