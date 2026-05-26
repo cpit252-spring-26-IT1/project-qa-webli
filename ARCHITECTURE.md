@@ -132,6 +132,7 @@ The thin [`CodeBlockRendererStrategy`](src/QaWebli.TerminalUI/Presentation/CodeB
 * **Dependency:** [QRCoder 1.6.0](https://www.nuget.org/packages/QRCoder/) — added to [`QaWebli.TerminalUI.csproj`](src/QaWebli.TerminalUI/QaWebli.TerminalUI.csproj).
 * **Purpose:** Renders an ASCII QR code in the presenter status panel encoding the `joinUrl` (LAN IP or ngrok public URL). Students scan with their phone camera to open the join page instantly.
   - `GenerateCompact(url)` — borderless, ECC M, for the side-by-side status panel.
+  - For **ngrok** URLs specifically, `GenerateCompact(url)` switches to a half-block Unicode rendering with lower QR error correction so long public URLs take less space in the terminal footer.
   - `Generate(url)` — with quiet zones for wide terminals.
   - On failure → returns `"[QR unavailable]"` (no crash).
 * **Presenter layout:** `Program.cs` renders a transparent `Grid` with `Expand()` at the bottom of the screen. The left column (navigation, stats, join URL) fills available space while the right column (QR code) is pinned **hard-right** at the terminal edge without taking up unnecessary vertical space or generating distracting borders.
@@ -149,11 +150,11 @@ Not a GoF pattern — this is an infrastructure feature used to let participants
 
 * **Location:** [`src/QaWebli.Infrastructure/Server/WebServer.cs`](src/QaWebli.Infrastructure/Server/WebServer.cs), [`src/QaWebli.Infrastructure/Server/PollingHub.cs`](src/QaWebli.Infrastructure/Server/PollingHub.cs), [`src/QaWebli.Infrastructure/Server/Resources/client.html`](src/QaWebli.Infrastructure/Server/Resources/client.html)
 * **How it works:**
-  1. `WebServer` starts Kestrel (listening on the chosen port; default 8080).
+  1. `WebServer` disables configuration reload watchers, then starts Kestrel (listening on the chosen port; default 8080). The server is configured entirely in code, so file-watch reloads add no value and can exhaust Linux `inotify` limits on busy development machines.
   2. When a student opens the URL in their browser, Kestrel serves the embedded `client.html` — a self-contained page with HTML + CSS + JS in one file.
   3. The browser opens a WebSocket to `/hub`. The `PollingHub` registers the connection and calls `_manager.AddStudentAsync()`.
   4. `PollingHub` implements `ISessionObserver`, so when the presenter navigates to a new question, the hub receives the `QuestionChangedEvent` and broadcasts the new question as JSON to every connected student.
-  5. When the presenter quits, `PollingHub.CloseAllAsync()` sends a "session_ended" message to every student and closes their WebSocket connections gracefully.
+  5. When the presenter quits, `PollingHub.CloseAllAsync()` sends a "session_ended" message to every student and closes their WebSocket connections gracefully. Close/send calls use short cancellation windows so shutdown does not hang on dead sockets.
 
 ---
 

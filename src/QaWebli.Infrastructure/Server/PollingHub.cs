@@ -120,9 +120,10 @@ public sealed class PollingHub : ISessionObserver
             await ListenAsync(webSocket, studentId);
         }
         catch (WebSocketException) { }
-        catch (Exception ex)
+        catch (OperationCanceledException) { }
+        catch (Exception)
         {
-            Console.WriteLine($"[Error in WebSocket connection]: {ex}");
+            // Ignore other exceptions to prevent terminal UI corruption
         }
         finally
         {
@@ -140,11 +141,12 @@ public sealed class PollingHub : ISessionObserver
             {
                 try
                 {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                     await SendJsonAsync(ws, "{\"type\":\"session_ended\"}");
                     await ws.CloseAsync(WebSocketCloseStatus.NormalClosure,
-                        "Session ended", CancellationToken.None);
+                        "Session ended", cts.Token);
                 }
-                catch (WebSocketException) { }
+                catch { } // Ignore any exceptions during close
             });
         await Task.WhenAll(tasks);
     }
@@ -317,8 +319,9 @@ public sealed class PollingHub : ISessionObserver
         try
         {
             var bytes = Encoding.UTF8.GetBytes(json);
-            await ws.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await ws.SendAsync(bytes, WebSocketMessageType.Text, true, cts.Token);
         }
-        catch (WebSocketException) { }
+        catch { } // Ignore disconnects
     }
 }

@@ -31,6 +31,13 @@ public sealed class WebServer
 
     public async Task StartAsync()
     {
+        // The embedded server is configured entirely in code and does not need
+        // appsettings.json reload watchers. Disabling them also avoids exhausting
+        // low Linux inotify limits on machines running IDEs and other dev tools.
+        Environment.SetEnvironmentVariable(
+            "DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE",
+            "false");
+
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.ConfigureKestrel(k => k.Listen(IPAddress.Any, _port));
         builder.Logging.ClearProviders();
@@ -64,7 +71,10 @@ public sealed class WebServer
     public async Task StopAsync()
     {
         if (_app is not null)
-            await _app.StopAsync();
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await _app.StopAsync(cts.Token);
+        }
     }
 
     private static string GetEmbeddedClientHtml()

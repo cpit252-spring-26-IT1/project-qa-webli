@@ -111,6 +111,8 @@ qa-cli sample-quiz.md --port 8080 --ngrok --ngrok-authtoken "your_token_here"
 
 QA-CLI starts ngrok automatically, discovers the public URL, and shows it both as text and as a **scannable QR code** in the terminal. Students scan the QR from their phones — even off your local Wi‑Fi — and they are in.
 
+For long ngrok URLs, the terminal switches to a **more compact QR rendering** so the code fits more cleanly in the footer without forcing you to resize the presenter window as often.
+
 If ngrok fails to start, QA-CLI **exits immediately** with a clear error instead of silently falling back to a LAN URL that students outside your network cannot reach.
 
 #### Manual ngrok (troubleshooting)
@@ -271,6 +273,10 @@ The current automated suite contains **16 tests** and focuses on the main projec
 - small runtime checks for the Observer and Strategy patterns used in presentation
 
 The goal of the suite is to validate the parts of the project users actually experience, rather than exhaustively test small internal helpers.
+
+## Troubleshooting
+
+- **Linux inotify startup error** — If you previously saw an exception about `max_user_instances` or `FileSystemWatcher`, the embedded server now disables configuration reload watchers because this app configures Kestrel entirely in code. That avoids exhausting low inotify limits on Linux development machines.
 
 ## Screenshots
 

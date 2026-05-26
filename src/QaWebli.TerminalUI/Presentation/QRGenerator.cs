@@ -20,6 +20,9 @@ public static class QRGenerator
     {
         try
         {
+            if (IsNgrokUrl(url))
+                return GenerateHalfBlock(url);
+
             using var generator = new QRCodeGenerator();
             using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
             using var qr = new AsciiQRCode(data);
@@ -29,6 +32,40 @@ public static class QRGenerator
         {
             return "[QR unavailable]";
         }
+    }
+
+    private static bool IsNgrokUrl(string url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri)
+        && uri.Host.Contains("ngrok", StringComparison.OrdinalIgnoreCase);
+
+    private static string GenerateHalfBlock(string url)
+    {
+        using var generator = new QRCodeGenerator();
+        using var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.L);
+
+        var modules = data.ModuleMatrix;
+        var lines = new List<string>((modules.Count + 1) / 2);
+
+        for (var row = 0; row < modules.Count; row += 2)
+        {
+            var line = new char[modules.Count];
+            for (var column = 0; column < modules.Count; column++)
+            {
+                var top = modules[row][column];
+                var bottom = row + 1 < modules.Count && modules[row + 1][column];
+                line[column] = (top, bottom) switch
+                {
+                    (true, true) => '█',
+                    (true, false) => '▀',
+                    (false, true) => '▄',
+                    _ => ' '
+                };
+            }
+
+            lines.Add(new string(line));
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     /// <summary>Full QR code with quiet zone for wide terminals.</summary>
