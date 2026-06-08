@@ -280,7 +280,55 @@ The goal of the suite is to validate the parts of the project users actually exp
 
 ## Screenshots
 
-See the [Architecture document](ARCHITECTURE.md#terminal-demo) for annotated ASCII renderings of both plain-text and code-block question layouts, including the QR footer.
+The screenshots below show the application running in its main submission modes: local classroom hosting, student web voting, ngrok public hosting, and game mode with player names, countdowns, answer reveal, and leaderboard screens.
+
+**Local game session**
+
+![Local game presenter with student join QR](docs/screenshots/g-local.png)
+
+**Student correct-answer reveal**
+
+![Student web UI showing a correct answer reveal](docs/screenshots/local-webUI-correctAndReaveal.png)
+
+**Student wrong-answer reveal**
+
+![Student web UI showing wrong answer feedback after reveal](docs/screenshots/local+webUI-wrongAnsReaveal.png)
+
+**Session ended screen**
+
+![Student web UI showing session terminated state](docs/screenshots/session-terminated+webUI.png)
+
+**ngrok local mode**
+
+![Terminal presenter showing ngrok public URL and QR](docs/screenshots/ngrok.png)
+
+**ngrok game mode**
+
+![Game mode presenter showing ngrok public URL and compact QR](docs/screenshots/ngrok-g.png)
+
+**Game lobby name entry**
+
+![Student game lobby name entry screen](docs/screenshots/g-webUI-nameEntry.png)
+
+**Game lobby name typing**
+
+![Student typing a display name before joining game mode](docs/screenshots/g-webUI-nameWriting.png)
+
+**Game student pre-answer screen**
+
+![Student game UI before answering](docs/screenshots/g-webUI-preanswer.png)
+
+**Game timer ended and answer revealed**
+
+![Game mode answer reveal after timer ends](docs/screenshots/g-timerEnded.correctAns.png)
+
+**Game leaderboard**
+
+![Terminal game leaderboard after a question](docs/screenshots/g-leaderboard-show.png)
+
+## Generative AI Declaration
+
+Generative AI tools were used as programming assistants during this project. The full disclosure is kept in [AI_USAGE.md](AI_USAGE.md) at the repository root, including the tool categories used, project-stage summary, heavily AI-assisted files, and verification notes.
 
 ## Project Management
 
